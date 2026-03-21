@@ -71,3 +71,4 @@ websockets==16.0
 xxhash==3.6.0
 zstandard==0.25.0
 sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
