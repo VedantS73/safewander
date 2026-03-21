@@ -10,7 +10,7 @@ import { RoutesPage } from './components/pages/RoutesPage'
 
 function App() {
   const location = useLocation()
-  const isExplore = location.pathname === '/explore'
+  const fullBleed = location.pathname === '/explore' || location.pathname === '/routes'
 
   return (
     <Layout className="app-shell flex flex-col bg-slate-50 text-slate-900">
@@ -19,7 +19,7 @@ function App() {
       </Layout.Header>
 
       <Layout.Content
-        className={`app-shell-content flex min-h-0 flex-1 flex-col overflow-y-auto ${isExplore ? '!p-0' : 'p-4'}`}
+        className={`app-shell-content flex min-h-0 flex-1 flex-col overflow-y-auto ${fullBleed ? '!p-0' : 'p-4'}`}
       >
         <Routes>
           <Route path="/" element={<Navigate to="/explore" replace />} />

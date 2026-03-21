@@ -44,7 +44,7 @@ export function AssistantPage() {
       <Col span={24} className="flex min-h-0 flex-1 flex-col">
 
           {error && (
-            <Alert type="error" className="!mb-3" message={error.message} showIcon closable />
+            <Alert type="error" className="!mb-3" title={error.message} showIcon closable />
           )}
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white px-3 py-3">

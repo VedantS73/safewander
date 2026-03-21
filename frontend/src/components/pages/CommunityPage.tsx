@@ -5,7 +5,7 @@ export function CommunityPage() {
     <Row gutter={[16, 16]}>
       <Col xs={24} lg={12}>
         <Card title="Community Safety Layer" className="card-dark h-full">
-          <Space direction="vertical">
+          <Space orientation="vertical">
             <Typography.Paragraph>
               Community sentiment from travelers who recently passed through the area.
             </Typography.Paragraph>
@@ -16,7 +16,7 @@ export function CommunityPage() {
       </Col>
       <Col xs={24} lg={12}>
         <Card title="Nearby Safe Havens" className="card-dark h-full">
-          <Space direction="vertical">
+          <Space orientation="vertical">
             <Tag color="blue">2 Police Stations</Tag>
             <Tag color="purple">4 Hospitals</Tag>
             <Tag color="gold">7 Open Public Spaces</Tag>

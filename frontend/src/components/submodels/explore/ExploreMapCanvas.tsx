@@ -2,6 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
+import { SAFE_HAVEN_ICON_IDS, loadSafeHavenIconsIntoMap } from '../../../lib/mapSafeHavenIcons'
+import type { NearbyPlace } from '../../../types/places'
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export type LayerToggles = {
   police: boolean
   hospitals: boolean
@@ -13,48 +24,60 @@ type Props = {
   lng: number | null
   lat: number | null
   layers: LayerToggles
+  /** Places from GET /api/places/nearby (filtered by toggles on the map). */
+  places: NearbyPlace[]
 }
 
 const SOURCE_ID = 'safe-haven-points'
-const LAYER_ID = 'safe-haven-circles'
+const LAYER_ID = 'safe-haven-symbols'
 
-function buildSafeHavenGeoJSON(
-  lng: number,
-  lat: number,
-  layers: LayerToggles,
-): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = []
-  if (layers.police) {
-    features.push(point(lng + 0.002, lat + 0.001, '#2563eb'))
-    features.push(point(lng - 0.0015, lat + 0.002, '#2563eb'))
-  }
-  if (layers.hospitals) {
-    features.push(point(lng - 0.002, lat - 0.001, '#dc2626'))
-    features.push(point(lng + 0.0005, lat + 0.0025, '#dc2626'))
-  }
-  if (layers.cameras) {
-    features.push(point(lng + 0.001, lat - 0.002, '#d97706'))
-    features.push(point(lng + 0.003, lat + 0.0005, '#d97706'))
-  }
-  return { type: 'FeatureCollection', features }
+const TYPE_COLORS: Record<string, string> = {
+  police_station: '#2563eb',
+  hospital: '#dc2626',
+  camera: '#d97706',
 }
 
-function point(lng: number, lat: number, color: string): GeoJSON.Feature {
-  return {
-    type: 'Feature',
-    properties: { color },
-    geometry: { type: 'Point', coordinates: [lng, lat] },
+function iconIdForPlaceType(t: NearbyPlace['type']): string {
+  if (t === 'police_station') return SAFE_HAVEN_ICON_IDS.police_station
+  if (t === 'hospital') return SAFE_HAVEN_ICON_IDS.hospital
+  return SAFE_HAVEN_ICON_IDS.camera
+}
+
+function labelForType(t: string): string {
+  if (t === 'police_station') return 'Police station'
+  if (t === 'hospital') return 'Hospital'
+  if (t === 'camera') return 'Camera'
+  return t
+}
+
+function placesToGeoJSON(places: NearbyPlace[], layers: LayerToggles): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = []
+  for (const p of places) {
+    if (p.type === 'police_station' && !layers.police) continue
+    if (p.type === 'hospital' && !layers.hospitals) continue
+    if (p.type === 'camera' && !layers.cameras) continue
+
+    features.push({
+      type: 'Feature',
+      properties: {
+        color: TYPE_COLORS[p.type] ?? '#64748b',
+        icon: iconIdForPlaceType(p.type),
+        name: p.name,
+        placeType: p.type,
+        distance_m: p.distance_m,
+      },
+      geometry: { type: 'Point', coordinates: [p.x, p.y] },
+    })
   }
+  return { type: 'FeatureCollection', features }
 }
 
 /** Initial frame before GPS: high-level view over continental Europe */
 const EUROPE_CENTER: [number, number] = [14.5, 52.0]
 const EUROPE_OVERVIEW_ZOOM = 3.35
-/** Low pitch at continent scale keeps borders readable; user location flight still uses 3D tilt */
 const EUROPE_OVERVIEW_PITCH = 0
 const EUROPE_OVERVIEW_BEARING = 0
 
-/** Tighter 3D view once we lock onto the user (streets + buildings read well here) */
 const FOCUSED_PITCH = 62
 const FOCUSED_BEARING = 38
 
@@ -83,10 +106,11 @@ function addTerrainIfPossible(map: mapboxgl.Map) {
   }
 }
 
-export function ExploreMapCanvas({ accessToken, lng, lat, layers }: Props) {
+export function ExploreMapCanvas({ accessToken, lng, lat, layers, places }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markerRef = useRef<mapboxgl.Marker | null>(null)
+  const popupRef = useRef<mapboxgl.Popup | null>(null)
   const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
@@ -102,7 +126,6 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers }: Props) {
       bearing: EUROPE_OVERVIEW_BEARING,
       maxPitch: 85,
       antialias: true,
-      /* Right-drag = rotate, two-finger drag (touch) = pitch — defaults on */
     })
 
     map.addControl(
@@ -113,33 +136,97 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers }: Props) {
       }),
       'bottom-right',
     )
+
     map.on('load', () => {
       apply3DAtmosphere(map)
       addTerrainIfPossible(map)
 
-      const initial = buildSafeHavenGeoJSON(EUROPE_CENTER[0], EUROPE_CENTER[1], {
-        police: false,
-        hospitals: false,
-        cameras: false,
-      })
+      const initial: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
       map.addSource(SOURCE_ID, { type: 'geojson', data: initial })
-      map.addLayer({
-        id: LAYER_ID,
-        type: 'circle',
-        source: SOURCE_ID,
-        paint: {
-          'circle-radius': 9,
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.85,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
-        },
-      })
-      setMapReady(true)
+
+      void (async () => {
+        try {
+          await loadSafeHavenIconsIntoMap(map)
+        } catch (e) {
+          console.error('Safe haven icons failed to load; falling back to circles', e)
+          map.addLayer({
+            id: LAYER_ID,
+            type: 'circle',
+            source: SOURCE_ID,
+            paint: {
+              'circle-radius': 3,
+              'circle-color': ['get', 'color'],
+              'circle-opacity': 0.92,
+              'circle-stroke-width': 2.5,
+              'circle-stroke-color': '#ffffff',
+            },
+          })
+          wireLayerInteractions(map)
+          setMapReady(true)
+          return
+        }
+
+        map.addLayer({
+          id: LAYER_ID,
+          type: 'symbol',
+          source: SOURCE_ID,
+          layout: {
+            'icon-image': ['get', 'icon'],
+            // Was 0.72; ~0.3× for smaller pins on the map
+            'icon-size': 0.216,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'icon-anchor': 'center',
+          },
+          paint: {
+            'icon-opacity': 1,
+          },
+        })
+
+        wireLayerInteractions(map)
+        setMapReady(true)
+      })()
     })
+
+    function wireLayerInteractions(mapInstance: mapboxgl.Map) {
+      const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
+        const f = e.features?.[0]
+        if (!f?.properties) return
+        const name = String(f.properties.name ?? 'Unknown')
+        const pt = String(f.properties.placeType ?? '')
+        const dist = f.properties.distance_m
+        const d =
+          typeof dist === 'number'
+            ? dist
+            : typeof dist === 'string'
+              ? Number.parseFloat(dist)
+              : Number.NaN
+        const distLabel = Number.isFinite(d) ? ` · ${Math.round(d)} m away` : ''
+        popupRef.current?.remove()
+        popupRef.current = new mapboxgl.Popup({ maxWidth: '280px', offset: 6 })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="text-sm text-slate-900">
+              <div class="font-semibold">${escapeHtml(name)}</div>
+              <div class="mt-0.5 text-xs text-slate-600">${escapeHtml(labelForType(pt))}${escapeHtml(distLabel)}</div>
+            </div>`,
+          )
+          .addTo(mapInstance)
+      }
+
+      mapInstance.on('click', LAYER_ID, onClick)
+      mapInstance.on('mouseenter', LAYER_ID, () => {
+        mapInstance.getCanvas().style.cursor = 'pointer'
+      })
+      mapInstance.on('mouseleave', LAYER_ID, () => {
+        mapInstance.getCanvas().style.cursor = ''
+      })
+    }
 
     mapRef.current = map
     return () => {
+      popupRef.current?.remove()
+      popupRef.current = null
       setMapReady(false)
       markerRef.current?.remove()
       markerRef.current = null
@@ -156,7 +243,6 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers }: Props) {
       zoom: 15,
       pitch: FOCUSED_PITCH,
       bearing: FOCUSED_BEARING,
-      /* Slower, calmer glide than the short 2.2s flight */
       duration: 5200,
       curve: 1.05,
       essential: true,
@@ -174,11 +260,15 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers }: Props) {
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !mapReady || lng == null || lat == null) return
+    if (!map || !mapReady) return
     const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
     if (!src) return
-    src.setData(buildSafeHavenGeoJSON(lng, lat, layers))
-  }, [mapReady, lng, lat, layers])
+    if (lng == null || lat == null) {
+      src.setData({ type: 'FeatureCollection', features: [] })
+      return
+    }
+    src.setData(placesToGeoJSON(places, layers))
+  }, [mapReady, lng, lat, layers, places])
 
   if (!accessToken) {
     return (

@@ -26,3 +26,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# Local SQLite DB (created on first API start / seed)
+data/

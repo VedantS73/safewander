@@ -5,17 +5,17 @@ export function MonitorPage() {
     <Row gutter={[16, 16]}>
       <Col xs={24} lg={14}>
         <Card title="Live Alerts Monitor" className="card-dark" extra={<Badge status="processing" text="Streaming" />}>
-          <Space direction="vertical" className="w-full">
+          <Space orientation="vertical" className="w-full">
             <Alert
               type="warning"
               showIcon
-              message="High theft activity reported nearby"
+              title="High theft activity reported nearby"
               description="Official source update from 10 mins ago."
             />
             <Alert
               type="info"
               showIcon
-              message="Avoid 3rd Street after 10 PM"
+              title="Avoid 3rd Street after 10 PM"
               description="Police bulletin and local reports."
             />
           </Space>
@@ -23,7 +23,7 @@ export function MonitorPage() {
       </Col>
       <Col xs={24} lg={10}>
         <Card title="Check-In Timer" className="card-dark">
-          <Space direction="vertical" className="w-full">
+          <Space orientation="vertical" className="w-full">
             <Typography.Text className="!text-slate-600">
               User safety ping before escalation.
             </Typography.Text>

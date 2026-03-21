@@ -1,14 +1,23 @@
 import type { ReactNode } from 'react'
-import { Button, Card, Switch, Typography } from 'antd'
+import { Button, Card, Spin, Switch, Typography } from 'antd'
 import { CameraOutlined, MedicineBoxOutlined, SafetyOutlined } from '@ant-design/icons'
 import type { LayerToggles } from './ExploreMapCanvas'
 
 type Props = {
   layers: LayerToggles
   onChange: (next: LayerToggles) => void
+  placesLoading?: boolean
+  placesError?: string | null
+  nearbyCount?: number
 }
 
-export function SafeHavenLayerFilters({ layers, onChange }: Props) {
+export function SafeHavenLayerFilters({
+  layers,
+  onChange,
+  placesLoading = false,
+  placesError = null,
+  nearbyCount = 0,
+}: Props) {
   const toggle = (key: keyof LayerToggles) => onChange({ ...layers, [key]: !layers[key] })
 
   const row = (label: string, icon: ReactNode, key: keyof LayerToggles) => (
@@ -30,6 +39,21 @@ export function SafeHavenLayerFilters({ layers, onChange }: Props) {
       <Typography.Text className="!text-xs font-semibold uppercase tracking-wide text-slate-500">
         Safe haven layers
       </Typography.Text>
+
+      <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+        {placesLoading ? (
+          <>
+            <Spin size="small" />
+            <span>Loading nearby places…</span>
+          </>
+        ) : placesError ? (
+          <span className="text-amber-700">{placesError}</span>
+        ) : (
+          <span>
+            {nearbyCount} place{nearbyCount === 1 ? '' : 's'} in range — tap a dot for details
+          </span>
+        )}
+      </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5 sm:hidden">
         <Button
@@ -65,7 +89,8 @@ export function SafeHavenLayerFilters({ layers, onChange }: Props) {
       </div>
 
       <Typography.Paragraph type="secondary" className="!mb-0 !mt-2 !hidden !text-[11px] sm:!block">
-        Toggles show demo points near your position on the map.
+        Data comes from the SafeWander API within ~15 km of your location. Turn layers on to see points on
+        the map.
       </Typography.Paragraph>
     </Card>
   )
