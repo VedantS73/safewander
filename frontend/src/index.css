@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background: #f8fafc;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100%;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100svh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 1100;
+}
+
+.card-dark {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.card-dark .ant-card-head,
+.card-dark .ant-card-body,
+.card-dark .ant-statistic-title,
+.card-dark .ant-statistic-content,
+.card-dark .ant-typography,
+.card-dark .ant-timeline-item-content,
+.card-dark .ant-tag,
+.card-dark .ant-alert-message,
+.card-dark .ant-alert-description {
+  color: #0f172a !important;
+}
+
+.map-placeholder {
+  height: 320px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Standard mobile tab bar height (~52px) + home indicator safe area */
+:root {
+  --bottom-tab-height: 52px;
+}
+
+.app-shell-content {
+  overscroll-behavior: contain;
+  padding-bottom: calc(var(--bottom-tab-height) + env(safe-area-inset-bottom, 0px) + 16px);
+}
+
+/* Explore: full-bleed map between header and bottom tab bar */
+.explore-entry {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.explore-entry__map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.explore-map,
+.explore-map--placeholder {
+  min-height: 0;
+}
+
+.explore-entry__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.explore-entry__left {
+  display: flex;
+  max-width: min(20rem, calc(100vw - 0.75rem));
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  align-self: flex-start;
+}
+
+.explore-entry__right {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.explore-entry__right--mobile-open {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+}
+
+.explore-alerts-fab {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 25;
+}
+
+.explore-alerts-panel--mobile {
+  background: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: blur(12px);
+}
+
+.explore-float-card {
+  border-radius: 10px !important;
+  border-color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  min-height: calc(var(--bottom-tab-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-top: 1px solid #e2e8f0;
+  backdrop-filter: blur(10px);
+}
+
+.bottom-nav .ant-menu {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  width: 100%;
+  height: var(--bottom-tab-height);
+  max-width: 100%;
+  margin: 0 !important;
+  padding: 0 4px !important;
+  justify-content: stretch;
+  background: transparent !important;
+  border-bottom: none !important;
+  line-height: 1.1;
+}
+
+/* Remove Ant horizontal “underline” — it fights tab-bar height */
+.bottom-nav .ant-menu-horizontal .ant-menu-item::after,
+.bottom-nav .ant-menu-horizontal > .ant-menu-item::after {
+  display: none !important;
+  border-bottom: none !important;
+}
+
+/* Equal-width tabs: icon above label (standard app pattern) */
+.bottom-nav .ant-menu-item {
+  flex: 1 1 0 !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  height: var(--bottom-tab-height) !important;
+  margin-inline: 0 !important;
+  padding: 6px 2px 8px !important;
+  gap: 2px;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center;
+  border-radius: 0 !important;
+}
+
+.bottom-nav .ant-menu-item .anticon {
+  margin-inline-end: 0 !important;
+  margin-bottom: 0 !important;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bottom-nav .ant-menu-item .ant-menu-title-content {
+  margin-inline-start: 0 !important;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.bottom-nav .ant-menu-item-selected {
+  font-weight: 600;
+}
+
+@media (min-width: 641px) {
+  .bottom-nav .ant-menu-item .ant-menu-title-content {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 640px) {
+  .bottom-nav .ant-menu-item .ant-menu-title-content {
+    display: none;
+  }
+
+  /* Icon-only: vertically centered in fixed row */
+  .bottom-nav .ant-menu-item {
+    padding: 8px 2px !important;
+    gap: 0;
+  }
+
+  .bottom-nav .ant-menu-item .anticon {
+    font-size: 22px;
+  }
+}
