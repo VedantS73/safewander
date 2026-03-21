@@ -73,6 +73,13 @@ body {
   padding-bottom: calc(var(--bottom-tab-height) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
+/* Community: 40/60 split with a tall map on desktop */
+@media (min-width: 1024px) {
+  .community-page > .flex {
+    min-height: calc(100dvh - 200px);
+  }
+}
+
 /* Explore: full-bleed map between header and bottom tab bar */
 .explore-entry {
   position: relative;

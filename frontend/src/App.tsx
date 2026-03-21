@@ -10,7 +10,10 @@ import { RoutesPage } from './components/pages/RoutesPage'
 
 function App() {
   const location = useLocation()
-  const fullBleed = location.pathname === '/explore' || location.pathname === '/routes'
+  const fullBleed =
+    location.pathname === '/explore' ||
+    location.pathname === '/routes' ||
+    location.pathname === '/community'
 
   return (
     <Layout className="app-shell flex flex-col bg-slate-50 text-slate-900">

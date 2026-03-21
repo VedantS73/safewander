@@ -17,6 +17,7 @@ Tables are created on API startup (`init_db`).
 
 - **`safe_haven_places`** — Explore map points: `type` (`police_station` \| `camera` \| `hospital`), `name`, `x` (longitude), `y` (latitude).
 - **`crime_events`** — Past incidents from n8n: coordinates, title, link, date/time, location, `crime_type`, plus `created_at`.
+- **`community_feelings`** — Anonymous check-ins from the Community page: `latitude`, `longitude`, `feeling` (1 = best / green … 5 = worst / red), `created_at`.
 
 ### SQLite (default local)
 
@@ -51,6 +52,9 @@ python scripts/seed_places.py --append # append without clearing
 - `GET /api/places/nearby?latitude=&longitude=&radius_km=` — safe haven points near the user (for Explore map layers).
 - `DELETE /api/places` — delete **all** rows in `safe_haven_places`. Response: `{ "deleted": <n> }`.
 - `POST /api/places/bulk` — JSON body to insert many rows (see below).
+- `GET /api/community-feelings?limit=` — list saved check-ins (newest first; default `limit=5000`, max `50000`) for map overlays.
+- `POST /api/community-feelings` — body `{ "latitude": number, "longitude": number, "feeling": 1–5 }` (1 = most positive, 5 = most negative). Creates a row in `community_feelings`.
+- `DELETE /api/community-feelings` — delete **all** rows in `community_feelings`. Response: `{ "deleted": <n> }`.
 
 ### Bulk JSON shape (`POST /api/places/bulk`)
 
