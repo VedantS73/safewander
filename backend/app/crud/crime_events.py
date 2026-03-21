@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from math import cos, radians
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.orm import Session
 
 from app.geo_utils import haversine_m
@@ -71,6 +72,25 @@ def list_crime_events_near(
 
     out.sort(key=lambda t: t[1])
     return out
+
+
+def list_crime_events_recent(
+    db: Session,
+    *,
+    hours: float = 24.0,
+    limit: int = 200,
+) -> list[CrimeEvent]:
+    """Rows with `created_at` within the last `hours` hours, newest first."""
+    h = max(0.25, min(float(hours), 24 * 14))  # 15 min … 14 days
+    lim = max(1, min(int(limit), 500))
+    since = datetime.now(timezone.utc) - timedelta(hours=h)
+    stmt = (
+        select(CrimeEvent)
+        .where(CrimeEvent.created_at >= since)
+        .order_by(desc(CrimeEvent.created_at))
+        .limit(lim)
+    )
+    return list(db.execute(stmt).scalars().all())
 
 
 def bulk_insert_events(db: Session, items: list[CrimeEventIn], *, replace: bool) -> tuple[int, int]:

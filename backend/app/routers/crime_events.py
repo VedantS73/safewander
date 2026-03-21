@@ -3,14 +3,16 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.crud.crime_events import bulk_insert_events, delete_all, list_crime_events_near
+from app.crud.crime_events import bulk_insert_events, delete_all, list_crime_events_near, list_crime_events_recent
 from app.database import get_db
 from app.schemas.crime_event import (
     CrimeEventRead,
+    CrimeEventRecentRead,
     CrimeEventsBulkRequest,
     CrimeEventsBulkResponse,
     CrimeEventsDeleteAllResponse,
     CrimeEventsNearbyResponse,
+    CrimeEventsRecentResponse,
     CrimeEventIn,
     N8nWebhookResponse,
 )
@@ -43,6 +45,18 @@ def crime_events_nearby(
         for ev, d in found
     ]
     return CrimeEventsNearbyResponse(events=events)
+
+
+@router.get("/crime-events/recent", response_model=CrimeEventsRecentResponse)
+def crime_events_recent(
+    db: Session = Depends(get_db),
+    hours: float = Query(24.0, ge=0.25, le=24 * 14, description="Last N hours (default 24)"),
+    limit: int = Query(200, ge=1, le=500, description="Max rows"),
+) -> CrimeEventsRecentResponse:
+    """Crime / press events ingested in the last window (by `created_at`), for Live alerts sidebar."""
+    rows = list_crime_events_recent(db, hours=hours, limit=limit)
+    events = [CrimeEventRecentRead.model_validate(r) for r in rows]
+    return CrimeEventsRecentResponse(events=events, hours=hours)
 
 
 @router.post("/n8n-webhook-crime-data", response_model=N8nWebhookResponse)

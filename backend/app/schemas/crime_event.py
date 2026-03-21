@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -72,3 +72,25 @@ class CrimeEventRead(BaseModel):
 
 class CrimeEventsNearbyResponse(BaseModel):
     events: list[CrimeEventRead]
+
+
+class CrimeEventRecentRead(BaseModel):
+    """Crime/news row for alerts feed (no distance)."""
+
+    id: int
+    latitude: float
+    longitude: float
+    original_title: str
+    original_link: str
+    crime_date: date | None
+    crime_time: str | None
+    location: str
+    crime_type: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CrimeEventsRecentResponse(BaseModel):
+    events: list[CrimeEventRecentRead]
+    hours: float = Field(description="Window used (last N hours)")

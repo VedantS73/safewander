@@ -20,6 +20,8 @@ export type LayerToggles = {
   cameras: boolean
   /** Press / crime news from n8n */
   crimeNews: boolean
+  /** Safety heatmap: green near safe havens, red from crime_events */
+  heatmap: boolean
 }
 
 type Props = {
@@ -35,7 +37,11 @@ const SOURCE_ID = 'safe-haven-points'
 const LAYER_ID = 'safe-haven-symbols'
 
 const CRIME_SOURCE_ID = 'crime-news-points'
+const CRIME_HEATMAP_SOURCE_ID = 'crime-heatmap-points'
+const SAFE_HAVEN_HEATMAP_SOURCE_ID = 'safe-haven-heatmap-points'
 const CRIME_LAYER_ID = 'crime-news-symbols'
+const CRIME_HEATMAP_LAYER_ID = 'crime-events-heatmap'
+const SAFE_HAVEN_HEATMAP_LAYER_ID = 'safe-haven-safety-heatmap'
 
 const TYPE_COLORS: Record<string, string> = {
   police_station: '#2563eb',
@@ -95,6 +101,80 @@ function crimeEventsToGeoJSON(events: NearbyCrimeEvent[], show: boolean): GeoJSO
     geometry: { type: 'Point' as const, coordinates: [e.longitude, e.latitude] },
   }))
   return { type: 'FeatureCollection', features }
+}
+
+/** All nearby crime points for heatmap (independent of pin toggle). */
+function crimeEventsToHeatmapGeoJSON(events: NearbyCrimeEvent[]): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = events.map((e) => ({
+    type: 'Feature' as const,
+    properties: { w: 1 },
+    geometry: { type: 'Point' as const, coordinates: [e.longitude, e.latitude] },
+  }))
+  return { type: 'FeatureCollection', features }
+}
+
+/** Safe haven points for green “calmer” heat (respects layer toggles). */
+function placesToSafeHavenHeatmapGeoJSON(places: NearbyPlace[], layers: LayerToggles): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = []
+  for (const p of places) {
+    if (p.type === 'police_station' && !layers.police) continue
+    if (p.type === 'hospital' && !layers.hospitals) continue
+    if (p.type === 'camera' && !layers.cameras) continue
+    features.push({
+      type: 'Feature' as const,
+      properties: { w: 1 },
+      geometry: { type: 'Point' as const, coordinates: [p.x, p.y] },
+    })
+  }
+  return { type: 'FeatureCollection', features }
+}
+
+/** Green heat — wider radius so stations/hospitals/cameras read as “safer” zones. */
+const SAFE_HAVEN_HEATMAP_PAINT = {
+  'heatmap-weight': 1,
+  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.35, 12, 1.4, 16, 1.9],
+  'heatmap-color': [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    0,
+    'rgba(16, 185, 129, 0)',
+    0.15,
+    'rgba(52, 211, 153, 0.25)',
+    0.35,
+    'rgba(34, 197, 94, 0.5)',
+    0.55,
+    'rgba(22, 163, 74, 0.68)',
+    0.8,
+    'rgba(21, 128, 61, 0.82)',
+    1,
+    'rgba(6, 78, 59, 0.9)',
+  ],
+  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 18, 12, 48, 16, 78],
+  'heatmap-opacity': 0.52,
+}
+
+/** Red heat — crime_events density (drawn above green so overlap reads as risk). */
+const CRIME_HEATMAP_PAINT = {
+  'heatmap-weight': 1,
+  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.45, 15, 2.1],
+  'heatmap-color': [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    0,
+    'rgba(248, 113, 113, 0)',
+    0.2,
+    'rgba(239, 68, 68, 0.4)',
+    0.45,
+    'rgba(220, 38, 38, 0.65)',
+    0.7,
+    'rgba(185, 28, 28, 0.82)',
+    1,
+    'rgba(127, 29, 29, 0.92)',
+  ],
+  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 28, 16, 45],
+  'heatmap-opacity': 0.58,
 }
 
 const EUROPE_CENTER: [number, number] = [14.5, 52.0]
@@ -170,6 +250,8 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
       const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
       map.addSource(SOURCE_ID, { type: 'geojson', data: empty })
       map.addSource(CRIME_SOURCE_ID, { type: 'geojson', data: empty })
+      map.addSource(CRIME_HEATMAP_SOURCE_ID, { type: 'geojson', data: empty })
+      map.addSource(SAFE_HAVEN_HEATMAP_SOURCE_ID, { type: 'geojson', data: empty })
 
       void (async () => {
         let useCircles = false
@@ -181,6 +263,22 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
         }
 
         if (useCircles) {
+          map.addLayer({
+            id: SAFE_HAVEN_HEATMAP_LAYER_ID,
+            type: 'heatmap',
+            source: SAFE_HAVEN_HEATMAP_SOURCE_ID,
+            maxzoom: 18,
+            paint: SAFE_HAVEN_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
+            layout: { visibility: 'none' },
+          })
+          map.addLayer({
+            id: CRIME_HEATMAP_LAYER_ID,
+            type: 'heatmap',
+            source: CRIME_HEATMAP_SOURCE_ID,
+            maxzoom: 18,
+            paint: CRIME_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
+            layout: { visibility: 'none' },
+          })
           map.addLayer({
             id: LAYER_ID,
             type: 'circle',
@@ -206,6 +304,22 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
             },
           })
         } else {
+          map.addLayer({
+            id: SAFE_HAVEN_HEATMAP_LAYER_ID,
+            type: 'heatmap',
+            source: SAFE_HAVEN_HEATMAP_SOURCE_ID,
+            maxzoom: 18,
+            paint: SAFE_HAVEN_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
+            layout: { visibility: 'none' },
+          })
+          map.addLayer({
+            id: CRIME_HEATMAP_LAYER_ID,
+            type: 'heatmap',
+            source: CRIME_HEATMAP_SOURCE_ID,
+            maxzoom: 18,
+            paint: CRIME_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
+            layout: { visibility: 'none' },
+          })
           map.addLayer({
             id: LAYER_ID,
             type: 'symbol',
@@ -353,15 +467,29 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
     if (!map || !mapReady) return
     const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
     const crimeSrc = map.getSource(CRIME_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
-    if (!src || !crimeSrc) return
+    const heatSrc = map.getSource(CRIME_HEATMAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    const safeHeatSrc = map.getSource(SAFE_HAVEN_HEATMAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    if (!src || !crimeSrc || !heatSrc || !safeHeatSrc) return
     if (lng == null || lat == null) {
       src.setData({ type: 'FeatureCollection', features: [] })
       crimeSrc.setData({ type: 'FeatureCollection', features: [] })
+      heatSrc.setData({ type: 'FeatureCollection', features: [] })
+      safeHeatSrc.setData({ type: 'FeatureCollection', features: [] })
       return
     }
     src.setData(placesToGeoJSON(places, layers))
     crimeSrc.setData(crimeEventsToGeoJSON(crimeEvents, layers.crimeNews))
+    heatSrc.setData(crimeEventsToHeatmapGeoJSON(crimeEvents))
+    safeHeatSrc.setData(placesToSafeHavenHeatmapGeoJSON(places, layers))
   }, [mapReady, lng, lat, layers, places, crimeEvents])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const vis = layers.heatmap ? 'visible' : 'none'
+    if (map.getLayer(SAFE_HAVEN_HEATMAP_LAYER_ID)) map.setLayoutProperty(SAFE_HAVEN_HEATMAP_LAYER_ID, 'visibility', vis)
+    if (map.getLayer(CRIME_HEATMAP_LAYER_ID)) map.setLayoutProperty(CRIME_HEATMAP_LAYER_ID, 'visibility', vis)
+  }, [mapReady, layers.heatmap])
 
   if (!accessToken) {
     return (

@@ -77,6 +77,8 @@ Response: `{ "inserted": n, "total_in_db": m, "replaced": bool }`.
 
 ### Crime events (n8n + admin)
 
+- `GET /api/crime-events/nearby?latitude=&longitude=&radius_km=` — events near a point (map pins).
+- `GET /api/crime-events/recent?hours=24&limit=200` — events with `created_at` in the last `hours` (default **24**), newest first — **Live alerts** sidebar on Explore.
 - `POST /api/n8n-webhook-crime-data` — JSON **array** of events. **Replaces all** existing rows (full sync). Same fields as below.
 - `DELETE /api/crime-events` — delete all rows in `crime_events`. Response: `{ "deleted": n }`.
 - `POST /api/crime-events/bulk` — body `{ "replace": true|false, "events": [ ... ] }` (append vs replace).

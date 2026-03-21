@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGeolocation } from '../../../hooks/useGeolocation'
 import { useReverseGeocode } from '../../../hooks/useReverseGeocode'
-import type { NearbyCrimeEvent } from '../../../types/crimeEvents'
+import type { CrimeRecentAlert, NearbyCrimeEvent } from '../../../types/crimeEvents'
 import type { NearbyPlace } from '../../../types/places'
 import { AlertsSidebar } from './AlertsSidebar'
 import { ExploreMapCanvas, type LayerToggles } from './ExploreMapCanvas'
@@ -41,6 +41,7 @@ export function ExploreEntryView() {
     hospitals: false,
     cameras: false,
     crimeNews: true,
+    heatmap: true,
   })
 
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([])
@@ -50,6 +51,10 @@ export function ExploreEntryView() {
   const [crimeEvents, setCrimeEvents] = useState<NearbyCrimeEvent[]>([])
   const [crimeLoading, setCrimeLoading] = useState(false)
   const [crimeError, setCrimeError] = useState<string | null>(null)
+
+  const [recentAlerts, setRecentAlerts] = useState<CrimeRecentAlert[]>([])
+  const [recentAlertsLoading, setRecentAlertsLoading] = useState(true)
+  const [recentAlertsError, setRecentAlertsError] = useState<string | null>(null)
 
   const [alertsOpen, setAlertsOpen] = useState(defaultAlertsOpen)
   const [isMobile, setIsMobile] = useState(defaultIsMobile)
@@ -114,6 +119,28 @@ export function ExploreEntryView() {
 
     return () => controller.abort()
   }, [lat, lng])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setRecentAlertsLoading(true)
+    setRecentAlertsError(null)
+
+    const url = `${API_BASE}/crime-events/recent?hours=24&limit=200`
+    fetch(url, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error('Could not load recent alerts')
+        return r.json() as Promise<{ events: CrimeRecentAlert[] }>
+      })
+      .then((data) => setRecentAlerts(data.events ?? []))
+      .catch((e: Error) => {
+        if (e.name === 'AbortError') return
+        setRecentAlertsError(e.message)
+        setRecentAlerts([])
+      })
+      .finally(() => setRecentAlertsLoading(false))
+
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     if (lat == null || lng == null) {
@@ -189,7 +216,14 @@ export function ExploreEntryView() {
           ref={alertsContainerRef}
           className={`explore-entry__right pointer-events-auto ${isMobile && alertsOpen ? 'explore-entry__right--mobile-open' : ''}`}
         >
-          <AlertsSidebar isMobile={isMobile} open={alertsOpen} onToggle={() => setAlertsOpen((o) => !o)} />
+          <AlertsSidebar
+            isMobile={isMobile}
+            open={alertsOpen}
+            onToggle={() => setAlertsOpen((o) => !o)}
+            alerts={recentAlerts}
+            loading={recentAlertsLoading}
+            error={recentAlertsError}
+          />
         </div>
       </div>
     </div>
