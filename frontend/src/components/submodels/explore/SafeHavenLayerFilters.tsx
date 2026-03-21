@@ -87,11 +87,6 @@ export function SafeHavenLayerFilters({
         {row('Hospitals', <MedicineBoxOutlined />, 'hospitals')}
         {row('Cameras', <CameraOutlined />, 'cameras')}
       </div>
-
-      <Typography.Paragraph type="secondary" className="!mb-0 !mt-2 !hidden !text-[11px] sm:!block">
-        Data comes from the SafeWander API within ~15 km of your location. Turn layers on to see points on
-        the map.
-      </Typography.Paragraph>
     </Card>
   )
 }

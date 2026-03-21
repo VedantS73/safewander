@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from math import asin, cos, radians, sin, sqrt
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.place import SafeHavenPlace
+from app.schemas.place import PlaceCreate
 
 EARTH_RADIUS_M = 6_371_000
 
@@ -65,3 +66,38 @@ def list_places_near(
 
     out.sort(key=lambda t: t[1])
     return out
+
+
+def count_all(db: Session) -> int:
+    return int(db.scalar(select(func.count()).select_from(SafeHavenPlace)) or 0)
+
+
+def delete_all(db: Session) -> int:
+    """Delete every row in `safe_haven_places`. Returns number of rows deleted."""
+    before = count_all(db)
+    db.execute(delete(SafeHavenPlace))
+    db.commit()
+    return before
+
+
+def bulk_insert_places(db: Session, items: list[PlaceCreate], *, replace: bool) -> tuple[int, int]:
+    """
+    Insert rows. If `replace`, clear the table first (same transaction).
+    Returns (inserted_count, total_in_db_after).
+    """
+    if replace:
+        db.execute(delete(SafeHavenPlace))
+    inserted = 0
+    for row in items:
+        db.add(
+            SafeHavenPlace(
+                type=row.type,
+                name=row.name.strip(),
+                x=row.x,
+                y=row.y,
+            )
+        )
+        inserted += 1
+    db.commit()
+    total = count_all(db)
+    return inserted, total

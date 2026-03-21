@@ -32,6 +32,27 @@ python scripts/seed_places.py --append # append without clearing
 
 - `GET /health`
 - `GET /api/places/nearby?latitude=&longitude=&radius_km=` — safe haven points near the user (for Explore map layers).
+- `DELETE /api/places` — delete **all** rows in `safe_haven_places`. Response: `{ "deleted": <n> }`.
+- `POST /api/places/bulk` — JSON body to insert many rows (see below).
+
+### Bulk JSON shape (`POST /api/places/bulk`)
+
+```json
+{
+  "replace": true,
+  "places": [
+    { "type": "police_station", "name": "Example station", "x": 9.21, "y": 49.14 },
+    { "type": "hospital", "name": "Example hospital", "x": 9.22, "y": 49.15 },
+    { "type": "camera", "name": "Example camera", "x": 9.2, "y": 49.13 }
+  ]
+}
+```
+
+- `type` must be exactly: `police_station`, `camera`, or `hospital`.
+- `x` = longitude, `y` = latitude (WGS84).
+- `replace: true` — wipe the table, then insert `places` (full sync). `false` — append only.
+
+Response: `{ "inserted": n, "total_in_db": m, "replaced": bool }`.
 - `POST /api/chat` — **Vercel AI SDK UI** stream (use with `useChat` + `DefaultChatTransport` on the frontend). Uses **Gemini** with **tools** defined in `app/services/agent_tools.py` (registered in `gemini_chat.py`).
 - `GET /api/safety-score`
 - `GET /api/live-alerts`

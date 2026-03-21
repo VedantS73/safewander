@@ -1,0 +1,50 @@
+# Clear everything
+curl -X DELETE http://localhost:8000/api/places
+
+# Or replace in one call
+curl -X POST http://localhost:8000/api/places/bulk \
+  -H "Content-Type: application/json" \
+  -d '{"replace":true,"places":[{"type":"police_station","name":"A","x":9.2,"y":49.1}]}'
+
+
+curl -X POST http://localhost:8000/api/places/bulk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "replace": true,
+    "places": [
+      {"type":"police_station","name":"Polizeipräsidium Heilbronn","x":9.20791,"y":49.1422},
+      {"type":"police_station","name":"Polizeiposten Heilbronn Innenstadt","x":9.21867,"y":49.13887},
+
+      {"type":"police_station","name":"Polizeirevier Böckingen","x":9.1925,"y":49.1510},
+      {"type":"police_station","name":"Bundespolizeirevier Heilbronn","x":9.2140,"y":49.1395},
+      {"type":"police_station","name":"Polizeipräsidium Heilbronn (Gewerbe/Umwelt)","x":9.1810,"y":49.1355},
+
+      {"type":"police_station","name":"Polizeiposten Bad Friedrichshall","x":9.2145,"y":49.2305},
+      {"type":"police_station","name":"Polizeiposten Bad Rappenau","x":9.0990,"y":49.2400},
+      {"type":"police_station","name":"Polizeirevier Neckarsulm","x":9.2255,"y":49.1895},
+      {"type":"police_station","name":"Autobahnpolizeirevier Weinsberg","x":9.2870,"y":49.1515},
+      {"type":"police_station","name":"Polizeirevier Lauffen am Neckar","x":9.1450,"y":49.0730},
+
+      {"type":"police_station","name":"Polizeiposten Untergruppenbach","x":9.2700,"y":49.0900},
+      {"type":"police_station","name":"Polizeiposten Ilsfeld","x":9.2450,"y":49.0560},
+      {"type":"police_station","name":"Polizeiposten Obersulm","x":9.3820,"y":49.1100},
+      {"type":"police_station","name":"Polizeiposten Brackenheim","x":9.0630,"y":49.0800},
+      {"type":"police_station","name":"Polizeiposten Güglingen","x":9.0010,"y":49.0650},
+      {"type":"police_station","name":"Polizeiposten Neuenstadt am Kocher","x":9.3320,"y":49.2340},
+
+      {"type":"hospital","name":"SLK-Klinikum am Gesundbrunnen Heilbronn","x":9.2226,"y":49.1546},
+      {"type":"hospital","name":"SLK Klinikum am Plattenwald Bad Friedrichshall","x":9.2148,"y":49.2338},
+      {"type":"hospital","name":"Klinikum am Weissenhof (Psychiatrie) Weinsberg","x":9.2875,"y":49.1465},
+      {"type":"hospital","name":"DRK Krankenhaus Möckmühl","x":9.3580,"y":49.3210},
+      {"type":"hospital","name":"Krankenhaus Bad Rappenau","x":9.1015,"y":49.2408},
+
+      {"type":"camera","name":"CCTV - Neckarsulmer Str & Paulinenstr","x":9.2205,"y":49.1485},
+      {"type":"camera","name":"Traffic Cam - Kaiserstr & Allee","x":9.2180,"y":49.1420},
+      {"type":"camera","name":"CCTV - Südstr & Oststr Junction","x":9.2300,"y":49.1400},
+      {"type":"camera","name":"Traffic Cam - Karlsruher Str Crossing","x":9.1905,"y":49.1375},
+      {"type":"camera","name":"CCTV - Böckinger Str & Ludwigsburger Str","x":9.1950,"y":49.1505},
+      {"type":"camera","name":"Traffic Cam - Weinsberger Str Intersection","x":9.2105,"y":49.1500},
+      {"type":"camera","name":"CCTV - Bahnhofsvorplatz (Main Station)","x":9.2145,"y":49.1405},
+      {"type":"camera","name":"Traffic Cam - Hafenstr Industrial Area","x":9.2255,"y":49.1555}
+    ]
+  }'
