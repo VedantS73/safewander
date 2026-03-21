@@ -10,7 +10,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
-_default_sqlite = BACKEND_ROOT / "data" / "safewander.db"
+# _default_sqlite = BACKEND_ROOT / "data" / "safewander.db"
+_default_sqlite = Path("/tmp/safewander.db")
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_default_sqlite.as_posix()}")
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
