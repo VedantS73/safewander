@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import assistant, chat, emergency, places, safety
+from app.routers import assistant, chat, crime_events, emergency, places, safety
 
 load_dotenv()
 
@@ -36,6 +36,7 @@ app.include_router(assistant.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(emergency.router, prefix="/api")
 app.include_router(places.router, prefix="/api")
+app.include_router(crime_events.router, prefix="/api")
 
 
 @app.get("/health")

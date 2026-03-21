@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-import { SAFE_HAVEN_ICON_IDS, loadSafeHavenIconsIntoMap } from '../../../lib/mapSafeHavenIcons'
+import { CRIME_NEWS_ICON_ID, loadExploreMapIconsIntoMap, SAFE_HAVEN_ICON_IDS } from '../../../lib/mapSafeHavenIcons'
+import type { NearbyCrimeEvent } from '../../../types/crimeEvents'
 import type { NearbyPlace } from '../../../types/places'
 
 function escapeHtml(s: string): string {
@@ -17,6 +18,8 @@ export type LayerToggles = {
   police: boolean
   hospitals: boolean
   cameras: boolean
+  /** Press / crime news from n8n */
+  crimeNews: boolean
 }
 
 type Props = {
@@ -24,12 +27,15 @@ type Props = {
   lng: number | null
   lat: number | null
   layers: LayerToggles
-  /** Places from GET /api/places/nearby (filtered by toggles on the map). */
   places: NearbyPlace[]
+  crimeEvents: NearbyCrimeEvent[]
 }
 
 const SOURCE_ID = 'safe-haven-points'
 const LAYER_ID = 'safe-haven-symbols'
+
+const CRIME_SOURCE_ID = 'crime-news-points'
+const CRIME_LAYER_ID = 'crime-news-symbols'
 
 const TYPE_COLORS: Record<string, string> = {
   police_station: '#2563eb',
@@ -72,7 +78,25 @@ function placesToGeoJSON(places: NearbyPlace[], layers: LayerToggles): GeoJSON.F
   return { type: 'FeatureCollection', features }
 }
 
-/** Initial frame before GPS: high-level view over continental Europe */
+function crimeEventsToGeoJSON(events: NearbyCrimeEvent[], show: boolean): GeoJSON.FeatureCollection {
+  if (!show) return { type: 'FeatureCollection', features: [] }
+  const features: GeoJSON.Feature[] = events.map((e) => ({
+    type: 'Feature' as const,
+    properties: {
+      icon: CRIME_NEWS_ICON_ID,
+      title: e.original_title,
+      crimeType: e.crime_type,
+      location: e.location,
+      link: e.original_link,
+      distance_m: e.distance_m,
+      dateStr: e.crime_date ?? '',
+      timeStr: e.crime_time ?? '',
+    },
+    geometry: { type: 'Point' as const, coordinates: [e.longitude, e.latitude] },
+  }))
+  return { type: 'FeatureCollection', features }
+}
+
 const EUROPE_CENTER: [number, number] = [14.5, 52.0]
 const EUROPE_OVERVIEW_ZOOM = 3.35
 const EUROPE_OVERVIEW_PITCH = 0
@@ -80,6 +104,8 @@ const EUROPE_OVERVIEW_BEARING = 0
 
 const FOCUSED_PITCH = 62
 const FOCUSED_BEARING = 38
+
+const ICON_SIZE = 0.216
 
 function apply3DAtmosphere(map: mapboxgl.Map) {
   map.setFog({
@@ -102,11 +128,11 @@ function addTerrainIfPossible(map: mapboxgl.Map) {
     })
     map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.25 })
   } catch {
-    /* terrain optional — some tokens/styles may differ */
+    /* optional */
   }
 }
 
-export function ExploreMapCanvas({ accessToken, lng, lat, layers, places }: Props) {
+export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeEvents }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markerRef = useRef<mapboxgl.Marker | null>(null)
@@ -141,14 +167,20 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places }: Prop
       apply3DAtmosphere(map)
       addTerrainIfPossible(map)
 
-      const initial: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
-      map.addSource(SOURCE_ID, { type: 'geojson', data: initial })
+      const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+      map.addSource(SOURCE_ID, { type: 'geojson', data: empty })
+      map.addSource(CRIME_SOURCE_ID, { type: 'geojson', data: empty })
 
       void (async () => {
+        let useCircles = false
         try {
-          await loadSafeHavenIconsIntoMap(map)
+          await loadExploreMapIconsIntoMap(map)
         } catch (e) {
-          console.error('Safe haven icons failed to load; falling back to circles', e)
+          console.error('Explore map icons failed to load; using circles', e)
+          useCircles = true
+        }
+
+        if (useCircles) {
           map.addLayer({
             id: LAYER_ID,
             type: 'circle',
@@ -161,67 +193,125 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places }: Prop
               'circle-stroke-color': '#ffffff',
             },
           })
-          wireLayerInteractions(map)
-          setMapReady(true)
-          return
+          map.addLayer({
+            id: CRIME_LAYER_ID,
+            type: 'circle',
+            source: CRIME_SOURCE_ID,
+            paint: {
+              'circle-radius': 3.5,
+              'circle-color': '#7c3aed',
+              'circle-opacity': 0.92,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ffffff',
+            },
+          })
+        } else {
+          map.addLayer({
+            id: LAYER_ID,
+            type: 'symbol',
+            source: SOURCE_ID,
+            layout: {
+              'icon-image': ['get', 'icon'],
+              'icon-size': ICON_SIZE,
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'icon-anchor': 'center',
+            },
+            paint: { 'icon-opacity': 1 },
+          })
+          map.addLayer({
+            id: CRIME_LAYER_ID,
+            type: 'symbol',
+            source: CRIME_SOURCE_ID,
+            layout: {
+              'icon-image': ['get', 'icon'],
+              'icon-size': ICON_SIZE,
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'icon-anchor': 'center',
+            },
+            paint: { 'icon-opacity': 1 },
+          })
         }
 
-        map.addLayer({
-          id: LAYER_ID,
-          type: 'symbol',
-          source: SOURCE_ID,
-          layout: {
-            'icon-image': ['get', 'icon'],
-            // Was 0.72; ~0.3× for smaller pins on the map
-            'icon-size': 0.216,
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true,
-            'icon-anchor': 'center',
-          },
-          paint: {
-            'icon-opacity': 1,
-          },
+        const setPointer = () => {
+          map.getCanvas().style.cursor = 'pointer'
+        }
+        const clearPointer = () => {
+          map.getCanvas().style.cursor = ''
+        }
+
+        map.on('click', LAYER_ID, (e: mapboxgl.MapLayerMouseEvent) => {
+          const f = e.features?.[0]
+          if (!f?.properties) return
+          const name = String(f.properties.name ?? 'Unknown')
+          const pt = String(f.properties.placeType ?? '')
+          const dist = f.properties.distance_m
+          const d =
+            typeof dist === 'number'
+              ? dist
+              : typeof dist === 'string'
+                ? Number.parseFloat(dist)
+                : Number.NaN
+          const distLabel = Number.isFinite(d) ? ` · ${Math.round(d)} m away` : ''
+          popupRef.current?.remove()
+          popupRef.current = new mapboxgl.Popup({ maxWidth: '300px', offset: 6 })
+            .setLngLat(e.lngLat)
+            .setHTML(
+              `<div class="text-sm text-slate-900">
+                <div class="font-semibold">${escapeHtml(name)}</div>
+                <div class="mt-0.5 text-xs text-slate-600">${escapeHtml(labelForType(pt))}${escapeHtml(distLabel)}</div>
+              </div>`,
+            )
+            .addTo(map)
         })
 
-        wireLayerInteractions(map)
+        map.on('click', CRIME_LAYER_ID, (e: mapboxgl.MapLayerMouseEvent) => {
+          const f = e.features?.[0]
+          if (!f?.properties) return
+          const title = String(f.properties.title ?? 'News')
+          const crimeType = String(f.properties.crimeType ?? '')
+          const loc = String(f.properties.location ?? '')
+          const link = String(f.properties.link ?? '')
+          const dateStr = String(f.properties.dateStr ?? '')
+          const timeStr = String(f.properties.timeStr ?? '')
+          const dist = f.properties.distance_m
+          const d =
+            typeof dist === 'number'
+              ? dist
+              : typeof dist === 'string'
+                ? Number.parseFloat(dist)
+                : Number.NaN
+          const distLine = Number.isFinite(d) ? `<div class="mt-1 text-[11px] text-slate-400">~${Math.round(d)} m away</div>` : ''
+          const when = [dateStr, timeStr].filter(Boolean).join(' ')
+          popupRef.current?.remove()
+          const linkHtml = link
+            ? `<a class="mt-1 inline-block text-xs font-medium text-violet-700 underline" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open source</a>`
+            : ''
+          popupRef.current = new mapboxgl.Popup({ maxWidth: '320px', offset: 6 })
+            .setLngLat(e.lngLat)
+            .setHTML(
+              `<div class="text-sm text-slate-900">
+                <div class="text-[10px] font-semibold uppercase tracking-wide text-violet-700">News</div>
+                <div class="mt-0.5 font-semibold leading-snug">${escapeHtml(title)}</div>
+                <div class="mt-1 text-xs text-slate-600">${escapeHtml(crimeType)}</div>
+                <div class="mt-0.5 text-xs text-slate-500">${escapeHtml(loc)}</div>
+                ${when ? `<div class="mt-1 text-[11px] text-slate-400">${escapeHtml(when)}</div>` : ''}
+                ${distLine}
+                ${linkHtml}
+              </div>`,
+            )
+            .addTo(map)
+        })
+
+        map.on('mouseenter', LAYER_ID, setPointer)
+        map.on('mouseleave', LAYER_ID, clearPointer)
+        map.on('mouseenter', CRIME_LAYER_ID, setPointer)
+        map.on('mouseleave', CRIME_LAYER_ID, clearPointer)
+
         setMapReady(true)
       })()
     })
-
-    function wireLayerInteractions(mapInstance: mapboxgl.Map) {
-      const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
-        const f = e.features?.[0]
-        if (!f?.properties) return
-        const name = String(f.properties.name ?? 'Unknown')
-        const pt = String(f.properties.placeType ?? '')
-        const dist = f.properties.distance_m
-        const d =
-          typeof dist === 'number'
-            ? dist
-            : typeof dist === 'string'
-              ? Number.parseFloat(dist)
-              : Number.NaN
-        const distLabel = Number.isFinite(d) ? ` · ${Math.round(d)} m away` : ''
-        popupRef.current?.remove()
-        popupRef.current = new mapboxgl.Popup({ maxWidth: '280px', offset: 6 })
-          .setLngLat(e.lngLat)
-          .setHTML(
-            `<div class="text-sm text-slate-900">
-              <div class="font-semibold">${escapeHtml(name)}</div>
-              <div class="mt-0.5 text-xs text-slate-600">${escapeHtml(labelForType(pt))}${escapeHtml(distLabel)}</div>
-            </div>`,
-          )
-          .addTo(mapInstance)
-      }
-
-      mapInstance.on('click', LAYER_ID, onClick)
-      mapInstance.on('mouseenter', LAYER_ID, () => {
-        mapInstance.getCanvas().style.cursor = 'pointer'
-      })
-      mapInstance.on('mouseleave', LAYER_ID, () => {
-        mapInstance.getCanvas().style.cursor = ''
-      })
-    }
 
     mapRef.current = map
     return () => {
@@ -262,13 +352,16 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places }: Prop
     const map = mapRef.current
     if (!map || !mapReady) return
     const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
-    if (!src) return
+    const crimeSrc = map.getSource(CRIME_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    if (!src || !crimeSrc) return
     if (lng == null || lat == null) {
       src.setData({ type: 'FeatureCollection', features: [] })
+      crimeSrc.setData({ type: 'FeatureCollection', features: [] })
       return
     }
     src.setData(placesToGeoJSON(places, layers))
-  }, [mapReady, lng, lat, layers, places])
+    crimeSrc.setData(crimeEventsToGeoJSON(crimeEvents, layers.crimeNews))
+  }, [mapReady, lng, lat, layers, places, crimeEvents])
 
   if (!accessToken) {
     return (

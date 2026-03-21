@@ -66,7 +66,7 @@ class Base(DeclarativeBase):
 
 def init_db() -> None:
     """Create tables if they do not exist."""
-    from app.models import place  # noqa: F401
+    from app.models import crime_event, place  # noqa: F401
 
     if DATABASE_URL.startswith("sqlite"):
         (BACKEND_ROOT / "data").mkdir(parents=True, exist_ok=True)

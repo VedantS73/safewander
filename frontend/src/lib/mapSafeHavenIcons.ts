@@ -51,11 +51,23 @@ async function rasterizeSvgUrlToPngDataUrl(svgUrl: string): Promise<string> {
   }
 }
 
+/** Crime / press news pins on Explore (distinct from safe-haven). */
+export const CRIME_NEWS_ICON_ID = 'crime-news'
+
 /**
  * Load icons as PNG (rasterized from SVG) into the map style.
  */
 export function loadSafeHavenIconsIntoMap(map: Map): Promise<void> {
   return Promise.all(ICON_URLS.map(([id, url]) => loadOneIcon(map, id, url))).then(() => undefined)
+}
+
+export function loadCrimeNewsIconIntoMap(map: Map): Promise<void> {
+  return loadOneIcon(map, CRIME_NEWS_ICON_ID, '/icons/crime-news.svg')
+}
+
+/** Safe-haven + crime-news icons (Explore map). */
+export function loadExploreMapIconsIntoMap(map: Map): Promise<void> {
+  return Promise.all([loadSafeHavenIconsIntoMap(map), loadCrimeNewsIconIntoMap(map)]).then(() => undefined)
 }
 
 function loadOneIcon(map: Map, id: string, svgUrl: string): Promise<void> {

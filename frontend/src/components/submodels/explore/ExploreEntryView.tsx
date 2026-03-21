@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGeolocation } from '../../../hooks/useGeolocation'
 import { useReverseGeocode } from '../../../hooks/useReverseGeocode'
+import type { NearbyCrimeEvent } from '../../../types/crimeEvents'
 import type { NearbyPlace } from '../../../types/places'
 import { AlertsSidebar } from './AlertsSidebar'
 import { ExploreMapCanvas, type LayerToggles } from './ExploreMapCanvas'
@@ -12,6 +13,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api
 
 /** Search radius for safe haven points from the backend (km). */
 const NEARBY_RADIUS_KM = 15
+/** Search radius for crime / news events (km) — matches default API. */
+const CRIME_NEARBY_RADIUS_KM = 25
 
 /** Demo score until your API returns a real value */
 const DEMO_SAFETY_SCORE = 88
@@ -37,11 +40,16 @@ export function ExploreEntryView() {
     police: false,
     hospitals: false,
     cameras: false,
+    crimeNews: true,
   })
 
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([])
   const [placesLoading, setPlacesLoading] = useState(false)
   const [placesError, setPlacesError] = useState<string | null>(null)
+
+  const [crimeEvents, setCrimeEvents] = useState<NearbyCrimeEvent[]>([])
+  const [crimeLoading, setCrimeLoading] = useState(false)
+  const [crimeError, setCrimeError] = useState<string | null>(null)
 
   const [alertsOpen, setAlertsOpen] = useState(defaultAlertsOpen)
   const [isMobile, setIsMobile] = useState(defaultIsMobile)
@@ -107,6 +115,35 @@ export function ExploreEntryView() {
     return () => controller.abort()
   }, [lat, lng])
 
+  useEffect(() => {
+    if (lat == null || lng == null) {
+      setCrimeEvents([])
+      setCrimeError(null)
+      return
+    }
+
+    const controller = new AbortController()
+    setCrimeLoading(true)
+    setCrimeError(null)
+
+    const url = `${API_BASE}/crime-events/nearby?latitude=${encodeURIComponent(String(lat))}&longitude=${encodeURIComponent(String(lng))}&radius_km=${CRIME_NEARBY_RADIUS_KM}`
+
+    fetch(url, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error('Could not load news / crime events')
+        return r.json() as Promise<{ events: NearbyCrimeEvent[] }>
+      })
+      .then((data) => setCrimeEvents(data.events ?? []))
+      .catch((e: Error) => {
+        if (e.name === 'AbortError') return
+        setCrimeError(e.message)
+        setCrimeEvents([])
+      })
+      .finally(() => setCrimeLoading(false))
+
+    return () => controller.abort()
+  }, [lat, lng])
+
   const resolvedAddress =
     MAPBOX_TOKEN
       ? address
@@ -123,6 +160,7 @@ export function ExploreEntryView() {
           lat={lat}
           layers={layers}
           places={nearbyPlaces}
+          crimeEvents={crimeEvents}
         />
       </div>
 
@@ -141,6 +179,9 @@ export function ExploreEntryView() {
             placesLoading={placesLoading}
             placesError={placesError}
             nearbyCount={nearbyPlaces.length}
+            crimeLoading={crimeLoading}
+            crimeError={crimeError}
+            crimeCount={crimeEvents.length}
           />
         </div>
 

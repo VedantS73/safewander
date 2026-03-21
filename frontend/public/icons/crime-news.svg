@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <filter id="shN" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.4"/>
+    </filter>
+    <linearGradient id="gN" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#c4b5fd"/>
+      <stop offset="100%" style="stop-color:#6d28d9"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="56" fill="url(#gN)" stroke="#ffffff" stroke-width="6" filter="url(#shN)"/>
+  <!-- Newspaper / doc -->
+  <rect x="34" y="36" width="60" height="56" rx="6" fill="#ffffff"/>
+  <rect x="42" y="46" width="44" height="6" rx="2" fill="#7c3aed"/>
+  <rect x="42" y="58" width="36" height="4" rx="1" fill="#cbd5e1"/>
+  <rect x="42" y="66" width="40" height="4" rx="1" fill="#cbd5e1"/>
+  <rect x="42" y="74" width="28" height="4" rx="1" fill="#cbd5e1"/>
+  <circle cx="78" cy="82" r="10" fill="#f59e0b"/>
+  <path fill="#fff" d="M74 78h8v8h-8z"/>
+</svg>

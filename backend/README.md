@@ -13,9 +13,10 @@ uvicorn app.main:app --reload --port 8000
 
 ## Database
 
-Place data for the Explore “safe haven” map lives in **`safe_haven_places`**. Tables are created on API startup (`init_db`).
+Tables are created on API startup (`init_db`).
 
-- **Columns:** `type` (`police_station` \| `camera` \| `hospital`), `name`, `x` (longitude), `y` (latitude).
+- **`safe_haven_places`** — Explore map points: `type` (`police_station` \| `camera` \| `hospital`), `name`, `x` (longitude), `y` (latitude).
+- **`crime_events`** — Past incidents from n8n: coordinates, title, link, date/time, location, `crime_type`, plus `created_at`.
 
 ### SQLite (default local)
 
@@ -69,6 +70,30 @@ python scripts/seed_places.py --append # append without clearing
 - `replace: true` — wipe the table, then insert `places` (full sync). `false` — append only.
 
 Response: `{ "inserted": n, "total_in_db": m, "replaced": bool }`.
+
+### Crime events (n8n + admin)
+
+- `POST /api/n8n-webhook-crime-data` — JSON **array** of events. **Replaces all** existing rows (full sync). Same fields as below.
+- `DELETE /api/crime-events` — delete all rows in `crime_events`. Response: `{ "deleted": n }`.
+- `POST /api/crime-events/bulk` — body `{ "replace": true|false, "events": [ ... ] }` (append vs replace).
+
+### Event shape (webhook array item or `events[]`)
+
+```json
+{
+  "latitude": "49.14183",
+  "longitude": "9.220171",
+  "original_title": "POL-HN: …",
+  "original_link": "https://…",
+  "date": "2023-12-01",
+  "time": "16:00",
+  "location": "Heilbronn, Kreisstraße",
+  "crime_type": "Drunken driving or loss of control"
+}
+```
+
+`latitude` / `longitude` may be strings or numbers.
+
 - `POST /api/chat` — **Vercel AI SDK UI** stream (use with `useChat` + `DefaultChatTransport` on the frontend). Uses **Gemini** with **tools** defined in `app/services/agent_tools.py` (registered in `gemini_chat.py`).
 - `GET /api/safety-score`
 - `GET /api/live-alerts`
