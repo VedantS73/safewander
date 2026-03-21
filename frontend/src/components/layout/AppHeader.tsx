@@ -1,7 +1,11 @@
 import { Avatar, Button, Space, Tag, Typography } from 'antd'
 import { PhoneOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { useState } from 'react'
+import { SosAlertModal } from '../safety/SosAlertModal'
 
 export function AppHeader() {
+  const [sosOpen, setSosOpen] = useState(false)
+
   return (
     <div className="app-header flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2">
       <Space size={10}>
@@ -17,10 +21,18 @@ export function AppHeader() {
       </Space>
       <Space size={8}>
         <Tag color="green">Live Monitoring</Tag>
-        <Button size="small" type="primary" icon={<PhoneOutlined />}>
+        <Button
+          size="small"
+          type="primary"
+          danger
+          icon={<PhoneOutlined />}
+          onClick={() => setSosOpen(true)}
+        >
           SOS
         </Button>
       </Space>
+
+      <SosAlertModal open={sosOpen} onClose={() => setSosOpen(false)} />
     </div>
   )
 }

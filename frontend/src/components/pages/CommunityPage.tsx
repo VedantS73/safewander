@@ -161,7 +161,14 @@ export function CommunityPage() {
                 </Button>
               </div>
             ) : (
-              <div className="community-page__map-host min-h-[280px] flex-1 lg:min-h-0">
+              <div
+                className="community-page__map-host w-full"
+                style={{
+                  /* Explicit height — flex alone was collapsing to 0 and Mapbox stayed blank */
+                  height: 'min(520px, calc(100dvh - 220px))',
+                  minHeight: 280,
+                }}
+              >
                 <CommunityFeelingsMap
                   accessToken={MAPBOX_TOKEN}
                   feelings={feelings}

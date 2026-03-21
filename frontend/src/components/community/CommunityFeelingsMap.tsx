@@ -71,6 +71,10 @@ export function CommunityFeelingsMap({ accessToken, feelings, userLng, userLat }
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'top-right')
 
     map.on('load', () => {
+      // Fix blank map when container laid out after first paint
+      map.resize()
+      requestAnimationFrame(() => map.resize())
+
       map.addSource(SOURCE_ID, {
         type: 'geojson',
         data: feelingsToGeoJSON(feelings),
@@ -83,7 +87,7 @@ export function CommunityFeelingsMap({ accessToken, feelings, userLng, userLat }
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 5, 12, 14, 18, 22],
           'circle-color': [
             'match',
-            ['get', 'feeling'],
+            ['to-number', ['get', 'feeling']],
             1,
             '#059669',
             2,
@@ -128,8 +132,21 @@ export function CommunityFeelingsMap({ accessToken, feelings, userLng, userLat }
       setMapReady(true)
     })
 
+    const onWinResize = () => map.resize()
+    window.addEventListener('resize', onWinResize)
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        map.resize()
+      })
+      resizeObserver.observe(containerRef.current)
+    }
+
     mapRef.current = map
     return () => {
+      window.removeEventListener('resize', onWinResize)
+      resizeObserver?.disconnect()
       popupRef.current?.remove()
       popupRef.current = null
       markerRef.current?.remove()
@@ -186,8 +203,9 @@ export function CommunityFeelingsMap({ accessToken, feelings, userLng, userLat }
   }
 
   return (
-    <div className="community-feelings-map relative h-full min-h-0 w-full min-w-0 overflow-hidden rounded-lg">
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="community-feelings-map relative h-full min-h-[280px] w-full min-w-0 overflow-hidden rounded-lg">
+      {/* Fills parent height (Community page sets explicit px height so Mapbox is not 0×0) */}
+      <div ref={containerRef} className="h-full w-full min-h-[280px]" />
       <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md border border-slate-200 bg-white/95 px-2 py-1.5 text-[10px] shadow-sm backdrop-blur-sm">
         <div className="mb-1 font-semibold uppercase tracking-wide text-slate-600">Sentiment</div>
         <div className="flex items-center gap-1">
