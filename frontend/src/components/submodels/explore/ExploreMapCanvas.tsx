@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
@@ -20,7 +20,7 @@ export type LayerToggles = {
   cameras: boolean
   /** Press / crime news from n8n */
   crimeNews: boolean
-  /** Safety heatmap: green near safe havens, red from crime_events */
+  /** Heatmap mode: light basemap + green/red heat (uses all nearby points; pin toggles only affect icons) */
   heatmap: boolean
 }
 
@@ -42,6 +42,9 @@ const SAFE_HAVEN_HEATMAP_SOURCE_ID = 'safe-haven-heatmap-points'
 const CRIME_LAYER_ID = 'crime-news-symbols'
 const CRIME_HEATMAP_LAYER_ID = 'crime-events-heatmap'
 const SAFE_HAVEN_HEATMAP_LAYER_ID = 'safe-haven-safety-heatmap'
+
+const STYLE_STREETS = 'mapbox://styles/mapbox/streets-v12'
+const STYLE_LIGHT = 'mapbox://styles/mapbox/light-v11'
 
 const TYPE_COLORS: Record<string, string> = {
   police_station: '#2563eb',
@@ -103,7 +106,6 @@ function crimeEventsToGeoJSON(events: NearbyCrimeEvent[], show: boolean): GeoJSO
   return { type: 'FeatureCollection', features }
 }
 
-/** All nearby crime points for heatmap (independent of pin toggle). */
 function crimeEventsToHeatmapGeoJSON(events: NearbyCrimeEvent[]): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = events.map((e) => ({
     type: 'Feature' as const,
@@ -113,13 +115,11 @@ function crimeEventsToHeatmapGeoJSON(events: NearbyCrimeEvent[]): GeoJSON.Featur
   return { type: 'FeatureCollection', features }
 }
 
-/** Safe haven points for green “calmer” heat (respects layer toggles). */
-function placesToSafeHavenHeatmapGeoJSON(places: NearbyPlace[], layers: LayerToggles): GeoJSON.FeatureCollection {
+/** All safe-haven types for heatmap — ignores pin toggles (heatmap shows full picture). */
+function placesToSafeHavenHeatmapGeoJSON(places: NearbyPlace[]): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   for (const p of places) {
-    if (p.type === 'police_station' && !layers.police) continue
-    if (p.type === 'hospital' && !layers.hospitals) continue
-    if (p.type === 'camera' && !layers.cameras) continue
+    if (p.type !== 'police_station' && p.type !== 'hospital' && p.type !== 'camera') continue
     features.push({
       type: 'Feature' as const,
       properties: { w: 1 },
@@ -129,52 +129,50 @@ function placesToSafeHavenHeatmapGeoJSON(places: NearbyPlace[], layers: LayerTog
   return { type: 'FeatureCollection', features }
 }
 
-/** Green heat — wider radius so stations/hospitals/cameras read as “safer” zones. */
+/** Muted green — low saturation, lower opacity */
 const SAFE_HAVEN_HEATMAP_PAINT = {
   'heatmap-weight': 1,
-  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.35, 12, 1.4, 16, 1.9],
+  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.22, 12, 0.85, 16, 1.25],
   'heatmap-color': [
     'interpolate',
     ['linear'],
     ['heatmap-density'],
     0,
-    'rgba(16, 185, 129, 0)',
-    0.15,
-    'rgba(52, 211, 153, 0.25)',
-    0.35,
-    'rgba(34, 197, 94, 0.5)',
-    0.55,
-    'rgba(22, 163, 74, 0.68)',
-    0.8,
-    'rgba(21, 128, 61, 0.82)',
+    'rgba(163, 230, 200, 0)',
+    0.25,
+    'rgba(134, 239, 172, 0.22)',
+    0.5,
+    'rgba(74, 222, 128, 0.32)',
+    0.75,
+    'rgba(34, 197, 94, 0.38)',
     1,
-    'rgba(6, 78, 59, 0.9)',
+    'rgba(21, 128, 61, 0.42)',
   ],
-  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 18, 12, 48, 16, 78],
-  'heatmap-opacity': 0.52,
+  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 14, 12, 36, 16, 58],
+  'heatmap-opacity': 0.32,
 }
 
-/** Red heat — crime_events density (drawn above green so overlap reads as risk). */
+/** Muted red — softer, not neon */
 const CRIME_HEATMAP_PAINT = {
   'heatmap-weight': 1,
-  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.45, 15, 2.1],
+  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.28, 15, 1.35],
   'heatmap-color': [
     'interpolate',
     ['linear'],
     ['heatmap-density'],
     0,
-    'rgba(248, 113, 113, 0)',
-    0.2,
-    'rgba(239, 68, 68, 0.4)',
-    0.45,
-    'rgba(220, 38, 38, 0.65)',
-    0.7,
-    'rgba(185, 28, 28, 0.82)',
+    'rgba(252, 165, 165, 0)',
+    0.25,
+    'rgba(248, 113, 113, 0.22)',
+    0.5,
+    'rgba(239, 68, 68, 0.32)',
+    0.75,
+    'rgba(220, 38, 38, 0.38)',
     1,
-    'rgba(127, 29, 29, 0.92)',
+    'rgba(153, 27, 27, 0.42)',
   ],
-  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 28, 16, 45],
-  'heatmap-opacity': 0.58,
+  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 8, 12, 22, 16, 36],
+  'heatmap-opacity': 0.34,
 }
 
 const EUROPE_CENTER: [number, number] = [14.5, 52.0]
@@ -195,6 +193,19 @@ function apply3DAtmosphere(map: mapboxgl.Map) {
     'space-color': 'rgb(11, 11, 25)',
     'star-intensity': 0.35,
   })
+}
+
+function clearFogAndTerrain(map: mapboxgl.Map) {
+  try {
+    map.setTerrain(null)
+  } catch {
+    /* ignore */
+  }
+  try {
+    map.setFog(null)
+  } catch {
+    /* ignore */
+  }
 }
 
 function addTerrainIfPossible(map: mapboxgl.Map) {
@@ -219,13 +230,226 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const [mapReady, setMapReady] = useState(false)
 
+  const propsRef = useRef({ places, crimeEvents, layers, lng, lat })
+  propsRef.current = { places, crimeEvents, layers, lng, lat }
+
+  /** Tracks last applied basemap for heatmap mode (light vs streets) to avoid redundant setStyle */
+  const heatmapStyleSyncedRef = useRef<boolean | null>(null)
+  const setupExploreLayersRef = useRef<(map: mapboxgl.Map) => Promise<void>>(async () => {})
+
+  const syncSources = useCallback((map: mapboxgl.Map) => {
+    const { places: pl, crimeEvents: ce, layers: ly, lng: lg, lat: lt } = propsRef.current
+    const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    const crimeSrc = map.getSource(CRIME_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    const heatSrc = map.getSource(CRIME_HEATMAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    const safeHeatSrc = map.getSource(SAFE_HAVEN_HEATMAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    if (!src || !crimeSrc || !heatSrc || !safeHeatSrc) return
+    if (lg == null || lt == null) {
+      const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+      src.setData(empty)
+      crimeSrc.setData(empty)
+      heatSrc.setData(empty)
+      safeHeatSrc.setData(empty)
+      return
+    }
+    src.setData(placesToGeoJSON(pl, ly))
+    crimeSrc.setData(crimeEventsToGeoJSON(ce, ly.crimeNews))
+    heatSrc.setData(crimeEventsToHeatmapGeoJSON(ce))
+    safeHeatSrc.setData(placesToSafeHavenHeatmapGeoJSON(pl))
+    const vis = ly.heatmap ? 'visible' : 'none'
+    if (map.getLayer(SAFE_HAVEN_HEATMAP_LAYER_ID)) map.setLayoutProperty(SAFE_HAVEN_HEATMAP_LAYER_ID, 'visibility', vis)
+    if (map.getLayer(CRIME_HEATMAP_LAYER_ID)) map.setLayoutProperty(CRIME_HEATMAP_LAYER_ID, 'visibility', vis)
+  }, [])
+
+  const setupExploreLayers = useCallback(
+    async (map: mapboxgl.Map) => {
+      const heatmapOn = propsRef.current.layers.heatmap
+      if (heatmapOn) {
+        clearFogAndTerrain(map)
+      } else {
+        apply3DAtmosphere(map)
+        addTerrainIfPossible(map)
+      }
+
+      const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
+      map.addSource(SOURCE_ID, { type: 'geojson', data: empty })
+      map.addSource(CRIME_SOURCE_ID, { type: 'geojson', data: empty })
+      map.addSource(CRIME_HEATMAP_SOURCE_ID, { type: 'geojson', data: empty })
+      map.addSource(SAFE_HAVEN_HEATMAP_SOURCE_ID, { type: 'geojson', data: empty })
+
+      let useCircles = false
+      try {
+        await loadExploreMapIconsIntoMap(map)
+      } catch (e) {
+        console.error('Explore map icons failed to load; using circles', e)
+        useCircles = true
+      }
+
+      const addHeatmaps = () => {
+        map.addLayer({
+          id: SAFE_HAVEN_HEATMAP_LAYER_ID,
+          type: 'heatmap',
+          source: SAFE_HAVEN_HEATMAP_SOURCE_ID,
+          maxzoom: 18,
+          paint: SAFE_HAVEN_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
+          layout: { visibility: 'none' },
+        })
+        map.addLayer({
+          id: CRIME_HEATMAP_LAYER_ID,
+          type: 'heatmap',
+          source: CRIME_HEATMAP_SOURCE_ID,
+          maxzoom: 18,
+          paint: CRIME_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
+          layout: { visibility: 'none' },
+        })
+      }
+
+      if (useCircles) {
+        addHeatmaps()
+        map.addLayer({
+          id: LAYER_ID,
+          type: 'circle',
+          source: SOURCE_ID,
+          paint: {
+            'circle-radius': 3,
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.92,
+            'circle-stroke-width': 2.5,
+            'circle-stroke-color': '#ffffff',
+          },
+        })
+        map.addLayer({
+          id: CRIME_LAYER_ID,
+          type: 'circle',
+          source: CRIME_SOURCE_ID,
+          paint: {
+            'circle-radius': 3.5,
+            'circle-color': '#7c3aed',
+            'circle-opacity': 0.92,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          },
+        })
+      } else {
+        addHeatmaps()
+        map.addLayer({
+          id: LAYER_ID,
+          type: 'symbol',
+          source: SOURCE_ID,
+          layout: {
+            'icon-image': ['get', 'icon'],
+            'icon-size': ICON_SIZE,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'icon-anchor': 'center',
+          },
+          paint: { 'icon-opacity': 1 },
+        })
+        map.addLayer({
+          id: CRIME_LAYER_ID,
+          type: 'symbol',
+          source: CRIME_SOURCE_ID,
+          layout: {
+            'icon-image': ['get', 'icon'],
+            'icon-size': ICON_SIZE,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'icon-anchor': 'center',
+          },
+          paint: { 'icon-opacity': 1 },
+        })
+      }
+
+      const setPointer = () => {
+        map.getCanvas().style.cursor = 'pointer'
+      }
+      const clearPointer = () => {
+        map.getCanvas().style.cursor = ''
+      }
+
+      map.on('click', LAYER_ID, (e: mapboxgl.MapLayerMouseEvent) => {
+        const f = e.features?.[0]
+        if (!f?.properties) return
+        const name = String(f.properties.name ?? 'Unknown')
+        const pt = String(f.properties.placeType ?? '')
+        const dist = f.properties.distance_m
+        const d =
+          typeof dist === 'number'
+            ? dist
+            : typeof dist === 'string'
+              ? Number.parseFloat(dist)
+              : Number.NaN
+        const distLabel = Number.isFinite(d) ? ` · ${Math.round(d)} m away` : ''
+        popupRef.current?.remove()
+        popupRef.current = new mapboxgl.Popup({ maxWidth: '300px', offset: 6 })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="text-sm text-slate-900">
+                <div class="font-semibold">${escapeHtml(name)}</div>
+                <div class="mt-0.5 text-xs text-slate-600">${escapeHtml(labelForType(pt))}${escapeHtml(distLabel)}</div>
+              </div>`,
+          )
+          .addTo(map)
+      })
+
+      map.on('click', CRIME_LAYER_ID, (e: mapboxgl.MapLayerMouseEvent) => {
+        const f = e.features?.[0]
+        if (!f?.properties) return
+        const title = String(f.properties.title ?? 'News')
+        const crimeType = String(f.properties.crimeType ?? '')
+        const loc = String(f.properties.location ?? '')
+        const link = String(f.properties.link ?? '')
+        const dateStr = String(f.properties.dateStr ?? '')
+        const timeStr = String(f.properties.timeStr ?? '')
+        const dist = f.properties.distance_m
+        const d =
+          typeof dist === 'number'
+            ? dist
+            : typeof dist === 'string'
+              ? Number.parseFloat(dist)
+              : Number.NaN
+        const distLine = Number.isFinite(d) ? `<div class="mt-1 text-[11px] text-slate-400">~${Math.round(d)} m away</div>` : ''
+        const when = [dateStr, timeStr].filter(Boolean).join(' ')
+        popupRef.current?.remove()
+        const linkHtml = link
+          ? `<a class="mt-1 inline-block text-xs font-medium text-violet-700 underline" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open source</a>`
+          : ''
+        popupRef.current = new mapboxgl.Popup({ maxWidth: '320px', offset: 6 })
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="text-sm text-slate-900">
+                <div class="text-[10px] font-semibold uppercase tracking-wide text-violet-700">News</div>
+                <div class="mt-0.5 font-semibold leading-snug">${escapeHtml(title)}</div>
+                <div class="mt-1 text-xs text-slate-600">${escapeHtml(crimeType)}</div>
+                <div class="mt-0.5 text-xs text-slate-500">${escapeHtml(loc)}</div>
+                ${when ? `<div class="mt-1 text-[11px] text-slate-400">${escapeHtml(when)}</div>` : ''}
+                ${distLine}
+                ${linkHtml}
+              </div>`,
+          )
+          .addTo(map)
+      })
+
+      map.on('mouseenter', LAYER_ID, setPointer)
+      map.on('mouseleave', LAYER_ID, clearPointer)
+      map.on('mouseenter', CRIME_LAYER_ID, setPointer)
+      map.on('mouseleave', CRIME_LAYER_ID, clearPointer)
+
+      syncSources(map)
+    },
+    [syncSources],
+  )
+
+  setupExploreLayersRef.current = setupExploreLayers
+
   useEffect(() => {
     if (!accessToken || !containerRef.current) return
 
     mapboxgl.accessToken = accessToken
+    const initialHeatmap = propsRef.current.layers.heatmap
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: initialHeatmap ? STYLE_LIGHT : STYLE_STREETS,
       center: EUROPE_CENTER,
       zoom: EUROPE_OVERVIEW_ZOOM,
       pitch: EUROPE_OVERVIEW_PITCH,
@@ -244,187 +468,7 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
     )
 
     map.on('load', () => {
-      apply3DAtmosphere(map)
-      addTerrainIfPossible(map)
-
-      const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
-      map.addSource(SOURCE_ID, { type: 'geojson', data: empty })
-      map.addSource(CRIME_SOURCE_ID, { type: 'geojson', data: empty })
-      map.addSource(CRIME_HEATMAP_SOURCE_ID, { type: 'geojson', data: empty })
-      map.addSource(SAFE_HAVEN_HEATMAP_SOURCE_ID, { type: 'geojson', data: empty })
-
-      void (async () => {
-        let useCircles = false
-        try {
-          await loadExploreMapIconsIntoMap(map)
-        } catch (e) {
-          console.error('Explore map icons failed to load; using circles', e)
-          useCircles = true
-        }
-
-        if (useCircles) {
-          map.addLayer({
-            id: SAFE_HAVEN_HEATMAP_LAYER_ID,
-            type: 'heatmap',
-            source: SAFE_HAVEN_HEATMAP_SOURCE_ID,
-            maxzoom: 18,
-            paint: SAFE_HAVEN_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
-            layout: { visibility: 'none' },
-          })
-          map.addLayer({
-            id: CRIME_HEATMAP_LAYER_ID,
-            type: 'heatmap',
-            source: CRIME_HEATMAP_SOURCE_ID,
-            maxzoom: 18,
-            paint: CRIME_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
-            layout: { visibility: 'none' },
-          })
-          map.addLayer({
-            id: LAYER_ID,
-            type: 'circle',
-            source: SOURCE_ID,
-            paint: {
-              'circle-radius': 3,
-              'circle-color': ['get', 'color'],
-              'circle-opacity': 0.92,
-              'circle-stroke-width': 2.5,
-              'circle-stroke-color': '#ffffff',
-            },
-          })
-          map.addLayer({
-            id: CRIME_LAYER_ID,
-            type: 'circle',
-            source: CRIME_SOURCE_ID,
-            paint: {
-              'circle-radius': 3.5,
-              'circle-color': '#7c3aed',
-              'circle-opacity': 0.92,
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#ffffff',
-            },
-          })
-        } else {
-          map.addLayer({
-            id: SAFE_HAVEN_HEATMAP_LAYER_ID,
-            type: 'heatmap',
-            source: SAFE_HAVEN_HEATMAP_SOURCE_ID,
-            maxzoom: 18,
-            paint: SAFE_HAVEN_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
-            layout: { visibility: 'none' },
-          })
-          map.addLayer({
-            id: CRIME_HEATMAP_LAYER_ID,
-            type: 'heatmap',
-            source: CRIME_HEATMAP_SOURCE_ID,
-            maxzoom: 18,
-            paint: CRIME_HEATMAP_PAINT as mapboxgl.HeatmapPaint,
-            layout: { visibility: 'none' },
-          })
-          map.addLayer({
-            id: LAYER_ID,
-            type: 'symbol',
-            source: SOURCE_ID,
-            layout: {
-              'icon-image': ['get', 'icon'],
-              'icon-size': ICON_SIZE,
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true,
-              'icon-anchor': 'center',
-            },
-            paint: { 'icon-opacity': 1 },
-          })
-          map.addLayer({
-            id: CRIME_LAYER_ID,
-            type: 'symbol',
-            source: CRIME_SOURCE_ID,
-            layout: {
-              'icon-image': ['get', 'icon'],
-              'icon-size': ICON_SIZE,
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true,
-              'icon-anchor': 'center',
-            },
-            paint: { 'icon-opacity': 1 },
-          })
-        }
-
-        const setPointer = () => {
-          map.getCanvas().style.cursor = 'pointer'
-        }
-        const clearPointer = () => {
-          map.getCanvas().style.cursor = ''
-        }
-
-        map.on('click', LAYER_ID, (e: mapboxgl.MapLayerMouseEvent) => {
-          const f = e.features?.[0]
-          if (!f?.properties) return
-          const name = String(f.properties.name ?? 'Unknown')
-          const pt = String(f.properties.placeType ?? '')
-          const dist = f.properties.distance_m
-          const d =
-            typeof dist === 'number'
-              ? dist
-              : typeof dist === 'string'
-                ? Number.parseFloat(dist)
-                : Number.NaN
-          const distLabel = Number.isFinite(d) ? ` · ${Math.round(d)} m away` : ''
-          popupRef.current?.remove()
-          popupRef.current = new mapboxgl.Popup({ maxWidth: '300px', offset: 6 })
-            .setLngLat(e.lngLat)
-            .setHTML(
-              `<div class="text-sm text-slate-900">
-                <div class="font-semibold">${escapeHtml(name)}</div>
-                <div class="mt-0.5 text-xs text-slate-600">${escapeHtml(labelForType(pt))}${escapeHtml(distLabel)}</div>
-              </div>`,
-            )
-            .addTo(map)
-        })
-
-        map.on('click', CRIME_LAYER_ID, (e: mapboxgl.MapLayerMouseEvent) => {
-          const f = e.features?.[0]
-          if (!f?.properties) return
-          const title = String(f.properties.title ?? 'News')
-          const crimeType = String(f.properties.crimeType ?? '')
-          const loc = String(f.properties.location ?? '')
-          const link = String(f.properties.link ?? '')
-          const dateStr = String(f.properties.dateStr ?? '')
-          const timeStr = String(f.properties.timeStr ?? '')
-          const dist = f.properties.distance_m
-          const d =
-            typeof dist === 'number'
-              ? dist
-              : typeof dist === 'string'
-                ? Number.parseFloat(dist)
-                : Number.NaN
-          const distLine = Number.isFinite(d) ? `<div class="mt-1 text-[11px] text-slate-400">~${Math.round(d)} m away</div>` : ''
-          const when = [dateStr, timeStr].filter(Boolean).join(' ')
-          popupRef.current?.remove()
-          const linkHtml = link
-            ? `<a class="mt-1 inline-block text-xs font-medium text-violet-700 underline" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Open source</a>`
-            : ''
-          popupRef.current = new mapboxgl.Popup({ maxWidth: '320px', offset: 6 })
-            .setLngLat(e.lngLat)
-            .setHTML(
-              `<div class="text-sm text-slate-900">
-                <div class="text-[10px] font-semibold uppercase tracking-wide text-violet-700">News</div>
-                <div class="mt-0.5 font-semibold leading-snug">${escapeHtml(title)}</div>
-                <div class="mt-1 text-xs text-slate-600">${escapeHtml(crimeType)}</div>
-                <div class="mt-0.5 text-xs text-slate-500">${escapeHtml(loc)}</div>
-                ${when ? `<div class="mt-1 text-[11px] text-slate-400">${escapeHtml(when)}</div>` : ''}
-                ${distLine}
-                ${linkHtml}
-              </div>`,
-            )
-            .addTo(map)
-        })
-
-        map.on('mouseenter', LAYER_ID, setPointer)
-        map.on('mouseleave', LAYER_ID, clearPointer)
-        map.on('mouseenter', CRIME_LAYER_ID, setPointer)
-        map.on('mouseleave', CRIME_LAYER_ID, clearPointer)
-
-        setMapReady(true)
-      })()
+      void setupExploreLayersRef.current(map).then(() => setMapReady(true))
     })
 
     mapRef.current = map
@@ -432,12 +476,32 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
       popupRef.current?.remove()
       popupRef.current = null
       setMapReady(false)
+      heatmapStyleSyncedRef.current = null
       markerRef.current?.remove()
       markerRef.current = null
       map.remove()
       mapRef.current = null
     }
   }, [accessToken])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+
+    if (heatmapStyleSyncedRef.current === null) {
+      heatmapStyleSyncedRef.current = layers.heatmap
+      return
+    }
+    if (heatmapStyleSyncedRef.current === layers.heatmap) return
+
+    const nextHeatmap = layers.heatmap
+    map.setStyle(nextHeatmap ? STYLE_LIGHT : STYLE_STREETS)
+    map.once('style.load', () => {
+      void setupExploreLayersRef.current(map).then(() => {
+        heatmapStyleSyncedRef.current = nextHeatmap
+      })
+    })
+  }, [layers.heatmap, mapReady])
 
   useEffect(() => {
     const map = mapRef.current
@@ -465,31 +529,8 @@ export function ExploreMapCanvas({ accessToken, lng, lat, layers, places, crimeE
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    const src = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
-    const crimeSrc = map.getSource(CRIME_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
-    const heatSrc = map.getSource(CRIME_HEATMAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
-    const safeHeatSrc = map.getSource(SAFE_HAVEN_HEATMAP_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
-    if (!src || !crimeSrc || !heatSrc || !safeHeatSrc) return
-    if (lng == null || lat == null) {
-      src.setData({ type: 'FeatureCollection', features: [] })
-      crimeSrc.setData({ type: 'FeatureCollection', features: [] })
-      heatSrc.setData({ type: 'FeatureCollection', features: [] })
-      safeHeatSrc.setData({ type: 'FeatureCollection', features: [] })
-      return
-    }
-    src.setData(placesToGeoJSON(places, layers))
-    crimeSrc.setData(crimeEventsToGeoJSON(crimeEvents, layers.crimeNews))
-    heatSrc.setData(crimeEventsToHeatmapGeoJSON(crimeEvents))
-    safeHeatSrc.setData(placesToSafeHavenHeatmapGeoJSON(places, layers))
-  }, [mapReady, lng, lat, layers, places, crimeEvents])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapReady) return
-    const vis = layers.heatmap ? 'visible' : 'none'
-    if (map.getLayer(SAFE_HAVEN_HEATMAP_LAYER_ID)) map.setLayoutProperty(SAFE_HAVEN_HEATMAP_LAYER_ID, 'visibility', vis)
-    if (map.getLayer(CRIME_HEATMAP_LAYER_ID)) map.setLayoutProperty(CRIME_HEATMAP_LAYER_ID, 'visibility', vis)
-  }, [mapReady, layers.heatmap])
+    syncSources(map)
+  }, [mapReady, layers, places, crimeEvents, lng, lat, syncSources])
 
   if (!accessToken) {
     return (

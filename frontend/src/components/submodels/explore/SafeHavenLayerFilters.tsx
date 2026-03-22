@@ -80,30 +80,25 @@ export function SafeHavenLayerFilters({
         )}
       </div>
 
-      {/* Featured: crime density heatmap — distinct from other toggles */}
+      {/* Heatmap mode: light basemap + muted green/red — single control (no duplicate on mobile) */}
       <div
-        className={`mt-3 rounded-xl border-2 px-2.5 py-2 transition-all ${
+        className={`mt-3 rounded-lg border px-2.5 py-2 transition-colors ${
           layers.heatmap
-            ? 'border-rose-500 bg-gradient-to-br from-emerald-50 via-amber-50/80 to-rose-50 shadow-md ring-2 ring-rose-200/70'
+            ? 'border-slate-300 bg-white shadow-sm'
             : 'border-slate-200 bg-slate-50/80'
         }`}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <HeatMapOutlined
-                className={`shrink-0 ${layers.heatmap ? 'text-rose-600' : 'text-slate-500'}`}
-              />
-              <span className="text-amber-700">Heatmap</span>
+            <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <HeatMapOutlined className={`shrink-0 ${layers.heatmap ? 'text-slate-700' : 'text-slate-400'}`} />
+              Heatmap
             </span>
-            <Typography.Text type="secondary" className="!mt-1 !block !text-[10px] leading-snug">
-            </Typography.Text>
           </div>
           <Switch
             size="small"
             checked={layers.heatmap}
             onChange={(checked) => onChange({ ...layers, heatmap: checked })}
-            className={layers.heatmap ? '[&_.ant-switch-checked]:!bg-rose-600' : ''}
           />
         </div>
       </div>
@@ -135,19 +130,6 @@ export function SafeHavenLayerFilters({
         </Button>
         <Button
           size="small"
-          className={
-            layers.heatmap
-              ? '!border-rose-500 !bg-gradient-to-r !from-emerald-600 !to-rose-600 !text-white hover:!from-emerald-500 hover:!to-rose-500'
-              : ''
-          }
-          type={layers.heatmap ? 'primary' : 'default'}
-          icon={<HeatMapOutlined />}
-          onClick={() => toggle('heatmap')}
-        >
-          Heatmap
-        </Button>
-        <Button
-          size="small"
           type={layers.crimeNews ? 'primary' : 'default'}
           icon={<FileTextOutlined />}
           onClick={() => toggle('crimeNews')}
@@ -164,8 +146,8 @@ export function SafeHavenLayerFilters({
       </div>
 
       <Typography.Paragraph type="secondary" className="!mb-0 !mt-2 !hidden !text-[11px] sm:!block">
-        Heatmap layers: green from nearby safe havens (toggle Police / Hospital / Camera), red from crime_events.
-        Purple pins are optional news markers.
+        Heatmap always includes all police, hospital, camera & crime points; toggles only affect which icons show.
+        Purple pins are news markers.
       </Typography.Paragraph>
     </Card>
   )
