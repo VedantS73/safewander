@@ -1,5 +1,5 @@
 import { Alert, Button, Input, Segmented, Spin } from 'antd'
-import { EnvironmentOutlined, FlagOutlined, CompassOutlined } from '@ant-design/icons'
+import { AimOutlined, EnvironmentOutlined, FlagOutlined, CompassOutlined } from '@ant-design/icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { RoutesMapCanvas } from '../routes/RoutesMapCanvas'
@@ -8,6 +8,7 @@ import {
   forwardGeocode,
   haversineMeters,
   pickRouteByMode,
+  reverseGeocode,
   type LngLat,
   type RouteCandidate,
   type RouteModeKey,
@@ -44,6 +45,7 @@ export function RoutesPage() {
   const [fromQuery, setFromQuery] = useState('')
   const [toQuery, setToQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  const [locatingFrom, setLocatingFrom] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [start, setStart] = useState<LngLat | null>(null)
@@ -54,6 +56,46 @@ export function RoutesPage() {
   const [corridorCrimes, setCorridorCrimes] = useState<NearbyCrimeEvent[]>([])
 
   const hasRoute = useMemo(() => route != null && start != null && end != null, [route, start, end])
+
+  const fillCurrentLocationAsFrom = useCallback(async () => {
+    if (!TOKEN) {
+      setError('Mapbox token missing. Set VITE_MAPBOX_ACCESS_TOKEN in .env')
+      return
+    }
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported in this browser.')
+      return
+    }
+    setLocatingFrom(true)
+    setError(null)
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 20_000,
+          maximumAge: 0,
+        })
+      })
+      const lng = pos.coords.longitude
+      const lat = pos.coords.latitude
+      const label = await reverseGeocode(lng, lat, TOKEN)
+      setFromQuery(label)
+    } catch (e: unknown) {
+      let msg = 'Could not get your location.'
+      if (e && typeof e === 'object' && 'code' in e) {
+        const code = (e as GeolocationPositionError).code
+        msg =
+          code === 1
+            ? 'Location permission denied. Allow location access to use this.'
+            : (e as GeolocationPositionError).message || msg
+      } else if (e instanceof Error) {
+        msg = e.message
+      }
+      setError(msg)
+    } finally {
+      setLocatingFrom(false)
+    }
+  }, [TOKEN])
 
   const onNavigate = useCallback(async () => {
     if (!TOKEN) {
@@ -116,6 +158,19 @@ export function RoutesPage() {
             onChange={(e) => setFromQuery(e.target.value)}
             prefix={<EnvironmentOutlined className="text-green-600" />}
             disabled={loading}
+            suffix={
+              <Button
+                type="text"
+                size="small"
+                className="!mr-[-4px] shrink-0"
+                icon={<AimOutlined />}
+                loading={locatingFrom}
+                disabled={loading}
+                onClick={() => void fillCurrentLocationAsFrom()}
+                aria-label="Use current location"
+                title="Use current location"
+              />
+            }
           />
           <Input
             size="large"

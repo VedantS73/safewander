@@ -97,6 +97,20 @@ export async function forwardGeocode(query: string, token: string): Promise<LngL
   return [center[0], center[1]]
 }
 
+/** Mapbox reverse geocode — returns a display string for coordinates */
+export async function reverseGeocode(lng: number, lat: number, token: string): Promise<string> {
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(`${lng},${lat}`)}.json?access_token=${encodeURIComponent(token)}&limit=1`
+
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Could not resolve an address for this location.')
+  const data = (await res.json()) as {
+    features?: { place_name?: string }[]
+  }
+  const name = data.features?.[0]?.place_name
+  if (!name) throw new Error('No address found for this location.')
+  return name
+}
+
 type DirectionsResponse = {
   routes?: {
     geometry: GeoJSON.LineString
