@@ -1,4 +1,4 @@
-import { Alert, Button, Input, Segmented, Spin } from 'antd'
+import { Alert, Button, Input, Segmented, Spin, Typography } from 'antd'
 import { AimOutlined, EnvironmentOutlined, FlagOutlined, CompassOutlined } from '@ant-design/icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -46,16 +46,34 @@ export function RoutesPage() {
   const [toQuery, setToQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [locatingFrom, setLocatingFrom] = useState(false)
+  const [locatingToFromMap, setLocatingToFromMap] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [start, setStart] = useState<LngLat | null>(null)
   const [end, setEnd] = useState<LngLat | null>(null)
+  /** Live device location for map marker + initial city-level pan (watchPosition + location button). */
+  const [myLocation, setMyLocation] = useState<LngLat | null>(null)
   const [route, setRoute] = useState<GeoJSON.Feature<GeoJSON.LineString> | null>(null)
   const [routeMode, setRouteMode] = useState<RouteModeKey>('fastest')
   const [routeCandidates, setRouteCandidates] = useState<RouteCandidate[] | null>(null)
   const [corridorCrimes, setCorridorCrimes] = useState<NearbyCrimeEvent[]>([])
 
   const hasRoute = useMemo(() => route != null && start != null && end != null, [route, start, end])
+
+  // Track position on the Routes map so the blue “you are here” marker updates as you move.
+  useEffect(() => {
+    if (!TOKEN || !navigator.geolocation) return
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setMyLocation([pos.coords.longitude, pos.coords.latitude])
+      },
+      () => {
+        /* permission denied or unavailable — silent; user can still use the location button */
+      },
+      { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 },
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [TOKEN])
 
   const fillCurrentLocationAsFrom = useCallback(async () => {
     if (!TOKEN) {
@@ -78,6 +96,7 @@ export function RoutesPage() {
       })
       const lng = pos.coords.longitude
       const lat = pos.coords.latitude
+      setMyLocation([lng, lat])
       const label = await reverseGeocode(lng, lat, TOKEN)
       setFromQuery(label)
     } catch (e: unknown) {
@@ -96,6 +115,33 @@ export function RoutesPage() {
       setLocatingFrom(false)
     }
   }, [TOKEN])
+
+  const fillDestinationFromMapLngLat = useCallback(
+    async (lngLat: LngLat) => {
+      if (!TOKEN) {
+        setError('Mapbox token missing. Set VITE_MAPBOX_ACCESS_TOKEN in .env')
+        return
+      }
+      setLocatingToFromMap(true)
+      setError(null)
+      try {
+        const label = await reverseGeocode(lngLat[0], lngLat[1], TOKEN)
+        setToQuery(label)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not resolve that place.')
+      } finally {
+        setLocatingToFromMap(false)
+      }
+    },
+    [TOKEN],
+  )
+
+  const onMapRightClickDestination = useCallback(
+    (ll: LngLat) => {
+      void fillDestinationFromMapLngLat(ll)
+    },
+    [fillDestinationFromMapLngLat],
+  )
 
   const onNavigate = useCallback(async () => {
     if (!TOKEN) {
@@ -178,9 +224,17 @@ export function RoutesPage() {
             value={toQuery}
             onChange={(e) => setToQuery(e.target.value)}
             prefix={<FlagOutlined className="text-red-500" />}
-            disabled={loading}
+            disabled={loading || locatingToFromMap}
+            suffix={
+              locatingToFromMap ? (
+                <Spin size="small" className="!mr-1" />
+              ) : null
+            }
           />
         </div>
+        <Typography.Text type="secondary" className="!text-xs">
+          Right-click the map to set “Where to go?” to that spot.
+        </Typography.Text>
         <Button type="primary" size="large" block icon={<CompassOutlined />} loading={loading} onClick={() => void onNavigate()}>
           Navigate
         </Button>
@@ -195,7 +249,15 @@ export function RoutesPage() {
             <Spin size="large" description="Finding route…" />
           </div>
         )}
-        <RoutesMapCanvas accessToken={TOKEN} route={route} start={start} end={end} routeMode={routeMode} />
+        <RoutesMapCanvas
+          accessToken={TOKEN}
+          route={route}
+          start={start}
+          end={end}
+          routeMode={routeMode}
+          myLocation={myLocation}
+          onRightClickLngLat={onMapRightClickDestination}
+        />
 
         {hasRoute && (
           <div className="pointer-events-auto absolute bottom-0 left-0 right-0 z-20 border-t border-slate-200/80 bg-white/95 p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-sm">

@@ -9,12 +9,19 @@ const ROUTE_LAYER = 'routes-page-line-layer'
 
 export type { RouteModeKey }
 
+/** ~city / town area when centering on the user (no route yet). */
+export const MY_LOCATION_PREVIEW_ZOOM = 11
+
 type Props = {
   accessToken: string | undefined
   route: GeoJSON.Feature<GeoJSON.LineString> | null
   start: LngLat | null
   end: LngLat | null
   routeMode: RouteModeKey
+  /** Live GPS / “where I am” — shown as its own marker, independent of routed start/end. */
+  myLocation: LngLat | null
+  /** Right-click: pass clicked lng/lat (e.g. fill “Where to go?”). */
+  onRightClickLngLat?: (coords: LngLat) => void
 }
 
 const MODE_COLORS: Record<RouteModeKey, string> = {
@@ -26,11 +33,22 @@ const MODE_COLORS: Record<RouteModeKey, string> = {
 const DEFAULT_CENTER: [number, number] = [14.5, 52.0]
 const DEFAULT_ZOOM = 3.35
 
-export function RoutesMapCanvas({ accessToken, route, start, end, routeMode }: Props) {
+export function RoutesMapCanvas({
+  accessToken,
+  route,
+  start,
+  end,
+  routeMode,
+  myLocation,
+  onRightClickLngLat,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const startMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const endMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const myLocationMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  /** Only auto-fly to the user once at ~city zoom when there’s no route to frame. */
+  const didFlyToMyLocationRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
@@ -73,8 +91,10 @@ export function RoutesMapCanvas({ accessToken, route, start, end, routeMode }: P
       setMapReady(false)
       startMarkerRef.current?.remove()
       endMarkerRef.current?.remove()
+      myLocationMarkerRef.current?.remove()
       startMarkerRef.current = null
       endMarkerRef.current = null
+      myLocationMarkerRef.current = null
       map.remove()
       mapRef.current = null
     }
@@ -109,18 +129,66 @@ export function RoutesMapCanvas({ accessToken, route, start, end, routeMode }: P
       endMarkerRef.current = new mapboxgl.Marker({ color: '#dc2626' }).setLngLat(end).addTo(map)
     }
 
-    if (route?.geometry?.coordinates?.length) {
-      const coords = route.geometry.coordinates as [number, number][]
+    const framingRoute = Boolean(route?.geometry?.coordinates?.length)
+    if (framingRoute) {
+      didFlyToMyLocationRef.current = true
+      const coords = route!.geometry!.coordinates as [number, number][]
       const bounds = new mapboxgl.LngLatBounds()
       for (const c of coords) {
         bounds.extend(c)
       }
       map.fitBounds(bounds, { padding: { top: 96, bottom: 96, left: 48, right: 48 }, maxZoom: 15, duration: 800 })
     } else if (start && end) {
+      didFlyToMyLocationRef.current = true
       const bounds = new mapboxgl.LngLatBounds(start, end)
       map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 600 })
     }
   }, [mapReady, route, start, end, routeMode])
+
+  // GPS dot + one-time city-level pan to the user (does not re-run when only route markers change).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+
+    const framingRoute = Boolean(route?.geometry?.coordinates?.length)
+    const framingTwo = Boolean(start && end)
+
+    if (myLocation) {
+      if (!myLocationMarkerRef.current) {
+        myLocationMarkerRef.current = new mapboxgl.Marker({ color: '#0ea5e9' })
+          .setLngLat(myLocation)
+          .addTo(map)
+      } else {
+        myLocationMarkerRef.current.setLngLat(myLocation)
+      }
+    } else {
+      myLocationMarkerRef.current?.remove()
+      myLocationMarkerRef.current = null
+    }
+
+    if (!framingRoute && !framingTwo && myLocation && !didFlyToMyLocationRef.current) {
+      map.easeTo({
+        center: myLocation,
+        zoom: MY_LOCATION_PREVIEW_ZOOM,
+        duration: 1100,
+      })
+      didFlyToMyLocationRef.current = true
+    }
+  }, [mapReady, myLocation, route, start, end])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !onRightClickLngLat) return
+
+    const handler = (e: mapboxgl.MapMouseEvent) => {
+      e.preventDefault()
+      onRightClickLngLat([e.lngLat.lng, e.lngLat.lat])
+    }
+    map.on('contextmenu', handler)
+    return () => {
+      map.off('contextmenu', handler)
+    }
+  }, [mapReady, onRightClickLngLat])
 
   if (!accessToken) {
     return (

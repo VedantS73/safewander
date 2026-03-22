@@ -1,5 +1,5 @@
-import { Avatar, Button, Space, Tag, Typography } from 'antd'
-import { PhoneOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { Button, Space, Tag, Typography } from 'antd'
+import { PhoneOutlined } from '@ant-design/icons'
 import { useState } from 'react'
 import { SosAlertModal } from '../safety/SosAlertModal'
 
@@ -9,7 +9,14 @@ export function AppHeader() {
   return (
     <div className="app-header flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2">
       <Space size={10}>
-        <Avatar size="small" icon={<SafetyCertificateOutlined />} className="bg-green-500" />
+        <img
+          src="/logo.png"
+          alt="SafeWander"
+          width={36}
+          height={36}
+          className="h-9 w-9 shrink-0 object-contain"
+          decoding="async"
+        />
         <div>
           <Typography.Title level={5} className="!m-0 !leading-tight !text-slate-900">
             SafeWander
