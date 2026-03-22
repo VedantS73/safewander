@@ -132,47 +132,47 @@ function placesToSafeHavenHeatmapGeoJSON(places: NearbyPlace[]): GeoJSON.Feature
 /** Muted green — low saturation, lower opacity */
 const SAFE_HAVEN_HEATMAP_PAINT = {
   'heatmap-weight': 1,
-  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.22, 12, 0.85, 16, 1.25],
+  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.42, 12, 1.15, 16, 1.65],
   'heatmap-color': [
     'interpolate',
     ['linear'],
     ['heatmap-density'],
     0,
-    'rgba(163, 230, 200, 0)',
+    'rgba(22, 101, 52, 0)',
     0.25,
-    'rgba(134, 239, 172, 0.22)',
+    'rgba(22, 163, 74, 0.34)',
     0.5,
-    'rgba(74, 222, 128, 0.32)',
+    'rgba(21, 128, 61, 0.5)',
     0.75,
-    'rgba(34, 197, 94, 0.38)',
+    'rgba(22, 101, 52, 0.64)',
     1,
-    'rgba(21, 128, 61, 0.42)',
+    'rgba(20, 83, 45, 0.76)',
   ],
-  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 14, 12, 36, 16, 58],
-  'heatmap-opacity': 0.32,
+  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 16, 12, 40, 16, 62],
+  'heatmap-opacity': 0.56,
 }
 
 /** Muted red — softer, not neon */
 const CRIME_HEATMAP_PAINT = {
   'heatmap-weight': 1,
-  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.28, 15, 1.35],
+  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.62, 15, 1.85],
   'heatmap-color': [
     'interpolate',
     ['linear'],
     ['heatmap-density'],
     0,
-    'rgba(252, 165, 165, 0)',
+    'rgba(185, 28, 28, 0)',
     0.25,
-    'rgba(248, 113, 113, 0.22)',
+    'rgba(239, 68, 68, 0.34)',
     0.5,
-    'rgba(239, 68, 68, 0.32)',
+    'rgba(220, 38, 38, 0.5)',
     0.75,
-    'rgba(220, 38, 38, 0.38)',
+    'rgba(185, 28, 28, 0.64)',
     1,
-    'rgba(153, 27, 27, 0.42)',
+    'rgba(127, 29, 29, 0.76)',
   ],
-  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 8, 12, 22, 16, 36],
-  'heatmap-opacity': 0.34,
+  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 26, 16, 40],
+  'heatmap-opacity': 0.58,
 }
 
 const EUROPE_CENTER: [number, number] = [14.5, 52.0]
