@@ -7,7 +7,7 @@ import { CommunityPage } from './components/pages/CommunityPage'
 import { ExplorePage } from './components/pages/ExplorePage'
 import { MonitorPage } from './components/pages/MonitorPage'
 import { RoutesPage } from './components/pages/RoutesPage'
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 function App() {
   const location = useLocation()
