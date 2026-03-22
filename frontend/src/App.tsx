@@ -7,7 +7,6 @@ import { CommunityPage } from './components/pages/CommunityPage'
 import { ExplorePage } from './components/pages/ExplorePage'
 import { MonitorPage } from './components/pages/MonitorPage'
 import { RoutesPage } from './components/pages/RoutesPage'
-import { Analytics } from "@vercel/analytics/react"
 
 function App() {
   const location = useLocation()
@@ -21,8 +20,6 @@ function App() {
       <Layout.Header className="!h-auto shrink-0 !bg-transparent !p-0">
         <AppHeader />
       </Layout.Header>
-
-      <Analytics/>
 
       <Layout.Content
         className={`app-shell-content flex min-h-0 flex-1 flex-col overflow-y-auto ${fullBleed ? '!p-0' : 'p-4'}`}
