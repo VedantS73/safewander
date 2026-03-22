@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/react": "^3.0.136",
     "@ant-design/icons": "^6.1.0",
+    "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.134",
     "antd": "^6.3.3",
     "axios": "^1.13.6",
