@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-import type { LngLat } from '../../lib/mapboxRouting'
+import type { LngLat, RouteModeKey } from '../../lib/mapboxRouting'
 
 const ROUTE_SOURCE = 'routes-page-line'
 const ROUTE_LAYER = 'routes-page-line-layer'
 
-export type RouteModeKey = 'safest' | 'fastest' | 'balanced'
+export type { RouteModeKey }
 
 type Props = {
   accessToken: string | undefined

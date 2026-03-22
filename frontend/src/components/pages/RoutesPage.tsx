@@ -1,17 +1,44 @@
 import { Alert, Button, Input, Segmented, Spin } from 'antd'
 import { EnvironmentOutlined, FlagOutlined, CompassOutlined } from '@ant-design/icons'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { RoutesMapCanvas, type RouteModeKey } from '../routes/RoutesMapCanvas'
-import { fetchDrivingRouteGeoJSON, forwardGeocode, type LngLat } from '../../lib/mapboxRouting'
+import { RoutesMapCanvas } from '../routes/RoutesMapCanvas'
+import {
+  fetchDrivingRouteAlternatives,
+  forwardGeocode,
+  haversineMeters,
+  pickRouteByMode,
+  type LngLat,
+  type RouteCandidate,
+  type RouteModeKey,
+} from '../../lib/mapboxRouting'
+import type { NearbyCrimeEvent } from '../../types/crimeEvents'
 
 const TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
 
 const TAB_OPTIONS: { label: string; value: RouteModeKey }[] = [
   { label: 'Safest Route', value: 'safest' },
   { label: 'Fastest Route', value: 'fastest' },
   { label: 'Balanced Route', value: 'balanced' },
 ]
+
+async function fetchCrimesAlongCorridor(start: LngLat, end: LngLat): Promise<NearbyCrimeEvent[]> {
+  const midLat = (start[1] + end[1]) / 2
+  const midLng = (start[0] + end[0]) / 2
+  const halfChordKm = haversineMeters(start, end) / 1000 / 2
+  const radiusKm = Math.min(100, Math.max(12, halfChordKm + 12))
+  try {
+    const res = await fetch(
+      `${API_BASE}/crime-events/nearby?latitude=${encodeURIComponent(String(midLat))}&longitude=${encodeURIComponent(String(midLng))}&radius_km=${encodeURIComponent(String(radiusKm))}`,
+    )
+    if (!res.ok) return []
+    const data = (await res.json()) as { events?: NearbyCrimeEvent[] }
+    return data.events ?? []
+  } catch {
+    return []
+  }
+}
 
 export function RoutesPage() {
   const [fromQuery, setFromQuery] = useState('')
@@ -23,6 +50,8 @@ export function RoutesPage() {
   const [end, setEnd] = useState<LngLat | null>(null)
   const [route, setRoute] = useState<GeoJSON.Feature<GeoJSON.LineString> | null>(null)
   const [routeMode, setRouteMode] = useState<RouteModeKey>('fastest')
+  const [routeCandidates, setRouteCandidates] = useState<RouteCandidate[] | null>(null)
+  const [corridorCrimes, setCorridorCrimes] = useState<NearbyCrimeEvent[]>([])
 
   const hasRoute = useMemo(() => route != null && start != null && end != null, [route, start, end])
 
@@ -43,22 +72,38 @@ export function RoutesPage() {
     setRoute(null)
     setStart(null)
     setEnd(null)
+    setRouteCandidates(null)
+    setCorridorCrimes([])
 
     try {
       const [s, e] = await Promise.all([forwardGeocode(a, TOKEN), forwardGeocode(b, TOKEN)])
       setStart(s)
       setEnd(e)
-      const line = await fetchDrivingRouteGeoJSON(s, e, TOKEN)
-      setRoute(line)
+
+      const [crimes, candidates] = await Promise.all([
+        fetchCrimesAlongCorridor(s, e),
+        fetchDrivingRouteAlternatives(s, e, TOKEN),
+      ])
+
+      setCorridorCrimes(crimes)
+      setRouteCandidates(candidates)
+      setRoute(pickRouteByMode(candidates, routeMode, crimes))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setStart(null)
       setEnd(null)
       setRoute(null)
+      setRouteCandidates(null)
+      setCorridorCrimes([])
     } finally {
       setLoading(false)
     }
-  }, [fromQuery, toQuery])
+  }, [fromQuery, toQuery, routeMode])
+
+  useEffect(() => {
+    if (!routeCandidates?.length || start == null || end == null) return
+    setRoute(pickRouteByMode(routeCandidates, routeMode, corridorCrimes))
+  }, [routeMode, routeCandidates, corridorCrimes, start, end])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -107,7 +152,9 @@ export function RoutesPage() {
               options={TAB_OPTIONS}
             />
             <p className="mt-2 text-center text-xs text-slate-500">
-              Route options use the same path for now; future versions can optimize each mode.
+              <strong>Fastest</strong> minimizes drive time. <strong>Safest</strong> prefers routes farther from nearby{' '}
+              <code className="rounded bg-slate-100 px-0.5 text-[10px]">crime_events</code> when Mapbox offers alternatives.{' '}
+              <strong>Balanced</strong> mixes time and exposure.
             </p>
           </div>
         )}
